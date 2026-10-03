@@ -3,11 +3,11 @@
 Gives each Claude Code session a **Role**: a job description for the Claude you talk to. You pick it from a dropdown above the chat box. Two sessions in the same project can hold different roles at the same time, e.g. `frontend` and `backend`.
 
 ```
-Role [ shanti-developer ▾ ]  ● Working        Subagents Explore · hyv-researcher ×2   ↻
+Role [ shanti-developer ▾ ] ⓘ  ● Working  Lead developer for ShantiLink…   Subagents Explore ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
 
-The second line comes from the separate `usage-band` mod; the two lines stack. The **↻** at the end of the first line refreshes both: the role list, the subagent list and (with usage-band) the usage figures.
+The second line comes from the separate `usage-band` mod; the two lines stack. Next to the picker is the active role's one-line description. **ⓘ** opens the **Roles panel**, and the **↻** at the end of the first line refreshes both lines: the role list, the subagent list and (with usage-band) the usage figures.
 
 ## Role, agent, skill
 
@@ -57,9 +57,16 @@ Two full examples are in [`examples/roles/`](examples/roles/) (`frontend.md` and
 |---|---|
 | **Dropdown** above the chat box | Plain Claude, then every local and global role |
 | `/role` | List roles; ● marks the active one |
+| `/role show [name]` | Open the Roles panel (same as ⓘ), optionally with that role's prompt open |
 | `/role <name>` | Switch (`<name>@global` picks the global copy) |
 | `/role <name> <task>` | Switch, then send the task as your first message in that role. Type it on the **new-session screen** to start a session in a role. |
 | `/role off` | Back to Plain Claude |
+
+**Not sure which role to pick?** Press **ⓘ** (or `/role show`). The Roles panel opens beside the chat with one card per role:
+- its description, scope, and whether it's the project default;
+- its limits (what it may edit, which tools and agents it may use);
+- **Show prompt**: the full text Claude receives when you switch to it;
+- **Use**: switch to it from the card.
 
 **Starting a session in a role:** the new-session screen is the desktop app's own UI, so no mod can draw a picker there. Instead, type `/role mod-builder fix the toggle` as your first message, or give a local role `default: true`.
 

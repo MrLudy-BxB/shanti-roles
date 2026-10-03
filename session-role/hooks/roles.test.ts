@@ -70,3 +70,30 @@ test('the band refresh button re-reads the role folders', async ($: any, on: any
   expect(l.text).toContain('late')
   delete files[`${PROJ}/.claude/roles/late.md`]
 })
+
+for (const surface of ['desktop', 'terminal'] as const) {
+  test(`roles panel on ${surface}: read a prompt, then use the role`, async ($: any, on: any) => {
+    stub(on, PROJ)
+    const v = (x: unknown) => ({ value: x })
+    on('agent.list', () => v([]))
+    on('ui.toast', () => v(undefined))
+    on('ui.open', (_$: any, e: any) => v({ isPlaced: true, id: e.id }))
+    on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+    const band = await $.ui.mount({ plugin: 'session-role', surface, component: 'AbovePrompt',
+      props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 100, scroll: {} as any, view: {} as any } })
+    expect(await band.find({ key: 'roles-info' })).toBeDefined()
+    await band.press({ key: 'roles-info' })
+    const pane = await $.ui.mount({ plugin: 'session-role', surface, component: 'Pane', requestId: 'session-role-roles',
+      props: { title: 'Roles', isFocused: false, bodyColumns: 80 } as any })
+    expect(await pane.find({ type: 'Text', text: 'Bot dev' })).toBeDefined()
+    expect(await pane.find({ key: 'md:bot-dev@local' })).toBeUndefined()
+    await pane.press({ key: 'prompt:bot-dev@local' })
+    const md = await pane.find({ key: 'md:bot-dev@local' })
+    expect(md).toBeDefined()
+    expect(JSON.stringify(md)).toContain('You build the bot.')
+    await pane.press({ key: 'use:bot-dev@local' })
+    expect(await pane.find({ type: 'Text', text: '● active' })).toBeDefined()
+    expect(await pane.find({ key: 'use:bot-dev@local' })).toBeUndefined()
+    expect(await band.find({ type: 'Text', text: 'Bot dev' })).toBeDefined()
+  })
+}

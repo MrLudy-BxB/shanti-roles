@@ -2,7 +2,7 @@
 
 A Claude Code mod that lets **each session take on a Role**: a persistent job description for the Claude you talk to, with its own instructions, tool limits and an edit fence. Two sessions in the same project can hold different roles at once (e.g. `frontend` and `backend`).
 
-Status: v0.4.0 (2026-10-03): local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
+Status: v0.5.0 (2026-10-03): adds the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
 
 ---
 
@@ -173,8 +173,9 @@ Subagents started by a role keep their **own** tool lists (Claude Code enforces 
 | State | Where | Scope | Purpose |
 |---|---|---|---|
 | `active` (the selected role) | `$.state` | this session, live | What the prompt, guards and band read |
-| `choices` (picker list) | `$.state` | this session | Fills the dropdown; refreshed at start, on `/role`, right after any Write/Edit/shell command that touches a `.claude/roles` folder (from any loop), at the end of every turn and on `session.measure`, every 30 s (`$.clock.every`; written only when the list changed), and on the band's ↻. This catches roles added by other sessions or outside Claude |
+| `choices` (every role, parsed) | `$.state` | this session | Fills the dropdown and the Roles panel; refreshed at start, on `/role`, right after any Write/Edit/shell command that touches a `.claude/roles` folder (from any loop), at the end of every turn and on `session.measure`, every 30 s (`$.clock.every`; written only when the list changed), and on the band's ↻. This catches roles added by other sessions or outside Claude |
 | `running` (subagents in flight) | `$.state` | this session | The Subagents indicator |
+| `expanded` | `$.state` | this session | Which roles' prompts the Roles panel shows |
 | `role-by-session:<sessionId>` | `$.store` | survives restarts | Restores the role when a session is resumed |
 
 **Switching** (picker or `/role`):
@@ -211,11 +212,17 @@ Session A — Role: frontend              Session B — Role: backend
 
 **Band above the chat box** (stacks with other mods such as `usage-band`):
 ```
-Role [ frontend ▾ ]  ● Working        Subagents Explore · hyv-researcher ×2   ↻
+Role [ frontend ▾ ] ⓘ  ● Working  Owns the web UI…   Subagents Explore · hyv-researcher ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
 - **Dropdown:** Plain Claude, then local roles, then global roles. Labels are just the role name; the scope appears only when a local and a global role share a name, and a project default is marked `(default)`.
 - **● Working / ○ Ready:** whether the session is busy (green while working).
+- **Description:** the active role's `description:`, dim, cut to fit.
+- **ⓘ (Button, key `roles-info`):** opens the Roles panel at the active role.
+
+**Roles panel** (`Pane`, id `session-role-roles`; also `/role show [name]`): one card per choice, Plain Claude first. Each card shows the name, scope, default/overridden tags, `● active`, the description, a limits line (edits · tools · agents), the file path, a **Show prompt** toggle that draws `roleSection(role)` as Markdown (exactly what the switch note hands Claude) and a **Use** button that switches. Which prompts are open is `expanded` in `$.state`. `choices` holds each parsed role (a `Role` plus `isOverridden`/`isDefault`), so the panel draws without reading files.
+
+A hover card was tried and dropped: a `position: absolute` Box needs an opaque background to sit over the transcript, and mods get no theme colours, so any fixed colour breaks light or dark mode. The description sits inline instead.
 - **Subagents:** subagents running now, grouped by type (`hyv-researcher ×2`), tracked from `agent.spawn` until their call or loop ends.
 - **↻ (Button, key `refresh`):** re-reads the role folders and prunes finished subagents. `usage-band` hooks the same press (`ui.press` matched on plugin `session-role`, element `refresh`) and re-measures its figures, so one button refreshes the whole band. A mod can't raise `session.measure` itself (`$.session.measure` isn't on a plugin's `$`), so the press is shared instead.
 - Deliberately **not** shown: the model (Claude Code shows it already), the edit fence, tool and agent counts. They're in `/role` and the switch note.
@@ -225,6 +232,7 @@ Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     W
 | Command | Effect |
 |---|---|
 | `/role` | List local and global roles; ● marks the active one |
+| `/role show [name]` | Open the Roles panel, optionally with that role's prompt expanded |
 | `/role <name>` | Switch (local wins) |
 | `/role <name> <task>` | Switch, then submit the task as the person's message (`$.prompt.submit`, `asUser`): starts a session in a role from the new-session screen |
 | `/role <name>@global` | Pick a specific copy |
@@ -247,7 +255,7 @@ On the terminal, the dropdown falls back to text and switching is done with `/ro
 
 ---
 
-## 10. Build status (v0.4)
+## 10. Build status (v0.5)
 
 | Piece | Status |
 |---|---|
@@ -260,6 +268,7 @@ On the terminal, the dropdown falls back to text and switching is done with `/ro
 | `agents:` filter | validated, not yet seen live |
 | Restore on resume | validated, not yet seen live |
 | Project `default: true` at session start | ✅ seen working live (skill-builder) |
+| Roles panel (ⓘ, `/role show`): cards, Show prompt, Use; inline description | ✅ engine-tested on desktop and terminal, not yet seen live |
 | Roles found from a subfolder; fence resolves against the role's base; ↻ refresh (roles + usage) | ✅ engine-tested (`hooks/*.test.ts`, `claude plugin test`), not yet seen live |
 | Re-send after compaction | validated, not yet seen live |
 | Subagent indicator: grouped (`Explore ×2`), each removed as it finishes, cleanup after an interrupt | ✅ seen working live (3 parallel subagents, matched the background-tasks panel step by step) |

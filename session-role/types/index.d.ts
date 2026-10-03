@@ -16,8 +16,8 @@ export type Role = {
   body: string
 }
 
-/** One entry of the band's picker. */
-export type Choice = { name: string; scope: Scope; isOverridden: boolean; isDefault: boolean }
+/** One role the session can pick: the parsed file, for the picker and the Roles panel. */
+export type Choice = Role & { isOverridden: boolean; isDefault: boolean }
 
 /** A subagent running now: its loop id, its type, and the Agent call that started it. */
 export type Running = { id: string; type: string; toolUseId: string }
@@ -28,6 +28,8 @@ declare module 'claude-code' {
       active: Role | null
       choices: Choice[]
       running: Running[]
+      /** Roles whose full prompt the Roles panel shows (`name@scope`). */
+      expanded: string[]
     }
   }
 }

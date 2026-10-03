@@ -117,6 +117,7 @@ For each role, check:
 | | |
 |---|---|
 | `/role` | list roles; ● marks the active one; roles from a parent folder are listed under that folder |
+| `/role show [name]` (or ⓘ in the band) | the Roles panel: every role's description, limits and full prompt, with a Use button; point a user here when they're unsure which role to pick |
 | `/role <name>` | switch |
 | `/role <name> <task>` | switch and start the task, e.g. as the first message of a new session |
 | `/role <name>@global` | pick the global copy when a local one shadows it |

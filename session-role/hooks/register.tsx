@@ -6,6 +6,9 @@ import type { Choice, Role, Running, Scope } from '../types'
 const active = atom({ plugin: 'session-role', key: 'active' } as const, null)
 const choices = atom({ plugin: 'session-role', key: 'choices' } as const, [])
 const running = atom({ plugin: 'session-role', key: 'running' } as const, [])
+const expanded = atom({ plugin: 'session-role', key: 'expanded' } as const, [])
+
+const PANE = 'session-role-roles'
 
 const OFF = '__off__'
 const FILE_TOOLS: Record<string, 'file_path' | 'notebook_path'> = {
@@ -147,6 +150,15 @@ function roleSection(r: Role): string {
 For this session you are the "${r.name}" role (a ${r.scope} role, defined in ${r.path}). You are the main assistant the user is talking to: take on this role for everything in this session. Claude Code's instructions above and the project's CLAUDE.md still apply and take precedence if they conflict with the role.${limits.length ? `\n\nLimits for this role:\n${limits.join('\n')}` : ''}${r.body ? `\n\n${r.body}` : ''}`
 }
 
+// One line for the panel and the hover card: what the role may edit, use and delegate to.
+function limitsLine(r: Role): string {
+  return [
+    `Edits: ${r.edit ? r.edit.join(', ') : 'anywhere'}`,
+    `Tools: ${r.tools ? r.tools.join(', ') : 'all'}`,
+    `Agents: ${r.agents ? r.agents.join(', ') : 'all'}`,
+  ].join('  ·  ')
+}
+
 // ---------- engine work (top-level so the checker can follow $) ----------
 
 let home = ''
@@ -192,8 +204,7 @@ async function discover($: EngineInterface): Promise<Found[]> {
 async function refreshChoices($: EngineInterface): Promise<Found[]> {
   const all = await discover($)
   const next: Choice[] = all.map(f => ({
-    name: f.name,
-    scope: f.scope,
+    ...toRole(f),
     isOverridden: f.scope === 'global' && all.some(o => o.scope === 'local' && o.name === f.name),
     isDefault: f.scope === 'local' && /^(true|yes)$/i.test(str(f.meta.default)),
   }))
@@ -304,6 +315,14 @@ function row(f: Found, all: Found[], cur: Role | null): string {
   return `  ${mark} ${f.name}${tags.length ? ` (${tags.join(', ')})` : ''}${desc ? ` — ${desc.length > 90 ? `${desc.slice(0, 89)}…` : desc}` : ''}`
 }
 
+// The Roles panel: every role with its description, limits and full prompt; `name` opens that one's prompt.
+async function openPanel($: EngineInterface, name?: string): Promise<void> {
+  const all = await refreshChoices($)
+  const hit = name ? all.find(f => f.name === name.split('@')[0] && (!name.includes('@') || f.scope === name.split('@')[1])) : undefined
+  if (hit) await update($, expanded, l => (l.includes(`${hit.name}@${hit.scope}`) ? l : [...l, `${hit.name}@${hit.scope}`]))
+  await $.ui.open({ id: PANE, title: 'Roles', closeOnEscape: true })
+}
+
 // The band's ↻ (key `refresh`): re-read the role folders and the subagent list. usage-band hooks the same press
 // (ui.press, plugin `session-role`, element `refresh`) to re-measure its figures, so one button refreshes the band.
 async function refreshAll($: EngineInterface): Promise<void> {
@@ -318,7 +337,7 @@ export const register: Register = on => {
     const started = await next(e)
     await $.command.register({
       name: 'role',
-      description: 'Give this session a role: /role lists, /role <name> [task] switches (and starts the task), /role off for Plain Claude',
+      description: 'Give this session a role: /role lists, /role show [name] opens the Roles panel, /role <name> [task] switches (and starts the task), /role off for Plain Claude',
     })
     await restore($).catch(() => undefined)
     // Roles added by another session, an editor or Finder show up within half a minute.
@@ -338,6 +357,11 @@ export const register: Register = on => {
   on('command.run', { command: 'role' }, async ($, e) => {
     const arg = e.args.trim()
     if (arg === '') return { text: listing(await refreshChoices($), await read($, active), await $.session.root()) }
+    if (arg === 'show' || arg.startsWith('show ')) {
+      const name = arg.slice(4).trim()
+      await openPanel($, name || undefined)
+      return { text: name ? `Roles panel opened at ${name}.` : 'Roles panel opened: descriptions, limits and full prompts of every role.' }
+    }
 
     const target = arg.split(/\s+/)[0]
     const task = arg.slice(target.length).trim()
@@ -462,6 +486,10 @@ export const register: Register = on => {
     const subText = [...counts].map(([type, n]) => `${type}${n > 1 ? ` ×${n}` : ''}`).join(' · ')
 
     const working = e.props.isWorking
+    // The active role's one-line description, cut to fit beside the picker.
+    const room = Math.max(20, Math.floor((e.props.bodyColumns ?? 100) / 2.5))
+    const desc = (r?.description ?? '').replace(/\s+/g, ' ')
+    const about = desc.length > room ? `${desc.slice(0, room - 1)}…` : desc
     const dot = Svg ? (
       <Svg
         key="status-dot"
@@ -485,11 +513,13 @@ export const register: Register = on => {
               ) : (
                 <Text bold>{r ? r.name : 'Plain Claude'}</Text>
               )}
+              {Button ? <Button key="roles-info" label="ⓘ" plain dimColor onPress={() => void openPanel($, r ? `${r.name}@${r.scope}` : undefined)} /> : null}
             </Box>
             <Box flexDirection="row" alignItems="center" gap={1}>
               {dot}
               <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? 'Working' : 'Ready'}</Text>
             </Box>
+            {about ? <Text dimColor>{about}</Text> : null}
           </Box>
           <Box flexDirection="row" alignItems="center" columnGap={2}>
             {subText ? (
@@ -502,6 +532,64 @@ export const register: Register = on => {
           </Box>
         </Box>
         {below}
+      </Box>
+    )
+  })
+
+  // The Roles panel: read any role before picking it.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Text, Button, Markdown } = $.ui.resolve(e) as any
+    const r = await read($, active)
+    const list = await read($, choices)
+    const open = await read($, expanded)
+    const use = async (v: string) => {
+      const switched = await switchRole($, v)
+      $.ui.toast(switched.text.split('\n')[0])
+    }
+    const toggle = (k: string) => update($, expanded, l => (l.includes(k) ? l.filter(x => x !== k) : [...l, k]))
+
+    const card = (c: Choice) => {
+      const k = `${c.name}@${c.scope}`
+      const isActive = r !== null && r.name === c.name && r.scope === c.scope
+      const isOpen = open.includes(k)
+      const tags = [c.scope, c.isDefault ? 'default' : '', c.isOverridden ? 'overridden by local' : ''].filter(Boolean).join(' · ')
+      return (
+        <Box key={`card:${k}`} flexDirection="column" borderStyle="round" borderColor={isActive ? GREEN : undefined} borderDimColor={!isActive} paddingX={1} marginBottom={1}>
+          <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2} flexWrap="wrap">
+            <Box flexDirection="row" alignItems="center" gap={1}>
+              <Text bold>{c.name}</Text>
+              <Text dimColor>{tags}</Text>
+              {isActive ? <Text color={GREEN}>● active</Text> : null}
+            </Box>
+            <Box flexDirection="row" alignItems="center" columnGap={2}>
+              <Button key={`prompt:${k}`} label={isOpen ? 'Hide prompt' : 'Show prompt'} plain dimColor onPress={() => void toggle(k)} />
+              {isActive ? null : <Button key={`use:${k}`} label="Use" variant="primary" onPress={() => void use(k)} />}
+            </Box>
+          </Box>
+          <Text>{c.description || 'No description.'}</Text>
+          <Text dimColor>{limitsLine(c)}</Text>
+          {isOpen ? (
+            Markdown ? <Markdown key={`md:${k}`} text={roleSection(c).slice(0, 9999)} /> : <Text>{roleSection(c)}</Text>
+          ) : null}
+          <Text dimColor>{c.path}</Text>
+        </Box>
+      )
+    }
+
+    return (
+      <Box flexDirection="column">
+        <Box key="card:off" flexDirection="column" borderStyle="round" borderColor={r === null ? GREEN : undefined} borderDimColor={r !== null} paddingX={1} marginBottom={1}>
+          <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
+            <Box flexDirection="row" alignItems="center" gap={1}>
+              <Text bold>Plain Claude</Text>
+              {r === null ? <Text color={GREEN}>● active</Text> : null}
+            </Box>
+            {r === null ? null : <Button key="use:off" label="Use" onPress={() => void use(OFF)} />}
+          </Box>
+          <Text dimColor>Claude Code's default assistant: no role instructions or limits.</Text>
+        </Box>
+        {list.length === 0 ? <Text dimColor>No roles yet. Ask Claude to create one, or add a file to .claude/roles/.</Text> : null}
+        {list.map(card)}
       </Box>
     )
   })
