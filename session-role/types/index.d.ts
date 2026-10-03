@@ -4,10 +4,12 @@ export type Role = {
   name: string
   scope: Scope
   path: string
+  /** The folder holding this role's `.claude/roles` (the session's root for a global role); `edit:` globs resolve against it. Absent on a role saved by 0.3.1 or earlier. */
+  base?: string
   description: string
   /** Tool allow-list; null means every tool. */
   tools: string[] | null
-  /** Globs (relative to the project root) the role may write; null means anywhere. */
+  /** Globs (relative to `base`) the role may write; null means anywhere. */
   edit: string[] | null
   /** Agents offered to the session; null means all. */
   agents: string[] | null

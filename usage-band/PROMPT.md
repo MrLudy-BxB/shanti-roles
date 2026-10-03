@@ -17,7 +17,7 @@ Build me a Claude Code mod called `usage-band`: an always-visible line above the
 ```json
 {
   "name": "usage-band",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Always-visible band above the prompt: context window fill and plan usage limits",
   "types": "./types/index.d.ts",
   "author": {
@@ -49,7 +49,7 @@ declare module 'claude-code' {
 
 ```tsx
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { Limit, Snapshot } from '../types'
 
@@ -94,6 +94,19 @@ function bar(percent: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="4" viewBox="0 0 36 4"><rect width="36" height="4" rx="2" fill="#8888" opacity="0.35"/><rect width="${w}" height="4" rx="2" fill="${fill}"/></svg>`
 }
 
+// Re-reads the figures, with the context estimated from the conversation as it is now (right straight
+// after a compaction, when the engine's figure is still the last reply's).
+async function remeasure($: EngineInterface): Promise<void> {
+  const u = await $.session.usage({ breakdown: 'summary' }).catch(() => null)
+  if (u === null) return
+  const total = u.context.breakdown?.totalTokens
+  const s: Snapshot =
+    total === undefined
+      ? { tokens: u.context.tokens, window: u.context.window, percent: u.context.percent, limits: u.rateLimits }
+      : { tokens: total, window: u.context.window, percent: Math.round((100 * total) / u.context.window), limits: u.rateLimits }
+  await update($, snap, () => s)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -101,6 +114,25 @@ export const register: Register = on => {
     const s: Snapshot = { ...u.context, limits: u.rateLimits }
     await update($, snap, () => s)
     return result
+  })
+
+  // The engine's figure is the last response's input, so straight after a compaction it still reads the old size
+  // until the next reply; show the compacted size at once.
+  on('session.compact', async ($, e, next) => {
+    const compacted = await next(e)
+    const after = 'tokensAfter' in compacted ? compacted.tokensAfter : undefined
+    const s = await read($, snap)
+    if (e.trigger !== 'precompute' && after !== undefined && s !== null) {
+      await update($, snap, () => ({ ...s, tokens: after, percent: Math.round((100 * after) / s.window) }))
+    }
+    return compacted
+  })
+
+  // The ↻ that session-role draws in the band refreshes these figures too.
+  on('ui.press', { plugin: 'session-role', element: 'refresh' }, async ($, e, next) => {
+    const pressed = await next(e)
+    await remeasure($)
+    return pressed
   })
 
   on('session.measure', async ($, e, next) => {

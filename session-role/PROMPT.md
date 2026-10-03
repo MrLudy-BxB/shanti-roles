@@ -29,12 +29,13 @@ tools: <optional: tool allow-list, e.g. Read, Grep, Glob>
 ```json
 {
   "name": "session-role",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Give each session a Role: a job description for the main Claude, from .claude/roles (local) or ~/.claude/roles (global), with tool limits, an edit fence and a picker above the chat box",
   "types": "./types/index.d.ts",
   "author": {
     "name": "ShantiLink"
-  }
+  },
+  "skills": "./skills/"
 }
 ```
 
@@ -53,10 +54,12 @@ export type Role = {
   name: string
   scope: Scope
   path: string
+  /** The folder holding this role's `.claude/roles` (the session's root for a global role); `edit:` globs resolve against it. Absent on a role saved by 0.3.1 or earlier. */
+  base?: string
   description: string
   /** Tool allow-list; null means every tool. */
   tools: string[] | null
-  /** Globs (relative to the project root) the role may write; null means anywhere. */
+  /** Globs (relative to `base`) the role may write; null means anywhere. */
   edit: string[] | null
   /** Agents offered to the session; null means all. */
   agents: string[] | null
@@ -100,7 +103,8 @@ const FILE_TOOLS: Record<string, 'file_path' | 'notebook_path'> = {
 }
 
 type Meta = Record<string, string | string[]>
-type Found = { name: string; scope: Scope; path: string; meta: Meta; body: string }
+// `base`: the folder whose `.claude/roles` holds the file; the edit fence resolves project-relative globs against it.
+type Found = { name: string; scope: Scope; path: string; base: string; meta: Meta; body: string }
 
 // ---------- parsing ----------
 
@@ -141,6 +145,7 @@ function toRole(f: Found): Role {
     name: f.name,
     scope: f.scope,
     path: f.path,
+    base: f.base,
     description: str(f.meta.description),
     tools: list(f.meta.tools),
     edit: list(f.meta.edit),
@@ -189,6 +194,18 @@ function insideFence(edit: string[], root: string, home: string, file: string): 
   })
 }
 
+// ---------- role files ----------
+
+const ROLES_PATH = /\.claude\/roles(?![\w-])/
+
+// Whether a tool call may have created, changed or removed a role file.
+function touchesRoles(tool: string, input: Record<string, unknown>): boolean {
+  if (tool === 'Bash') return typeof input.command === 'string' && ROLES_PATH.test(input.command)
+  const field = FILE_TOOLS[tool]
+  const file = field ? input[field] : undefined
+  return typeof file === 'string' && ROLES_PATH.test(file)
+}
+
 // ---------- band ----------
 
 const GREEN = '#3fb950'
@@ -206,7 +223,7 @@ function statusDot(working: boolean): string {
 
 function roleSection(r: Role): string {
   const limits = [
-    r.edit ? `- You may only create or edit files matching: ${r.edit.join(', ')} (paths are relative to the project root unless they start with ~/ or /). Edits elsewhere are blocked; if work is needed outside, tell the user or leave a request in a shared file.` : '',
+    r.edit ? `- You may only create or edit files matching: ${r.edit.join(', ')} (paths are relative to ${r.base ?? 'the project root'} unless they start with ~/ or /). Edits elsewhere are blocked; if work is needed outside, tell the user or leave a request in a shared file.` : '',
     r.tools ? `- You may only use these tools: ${r.tools.join(', ')}. Other tool calls are blocked.` : '',
     r.agents ? `- You may only delegate to these agents: ${r.agents.join(', ')}.` : '',
   ].filter(Boolean)
@@ -231,19 +248,30 @@ async function homeDir($: EngineInterface): Promise<string> {
   return home
 }
 
-// Local roles first, so a local role overrides a global one of the same name.
+// Every folder from the session's root up to (not including) the home folder or `/`, nearest first:
+// a session opened in a subfolder still finds the roles kept at the project root, as with CLAUDE.md.
+async function localBases($: EngineInterface): Promise<string[]> {
+  const h = await homeDir($)
+  const bases: string[] = []
+  for (let d = await $.session.root(); d !== '' && d !== '/' && d !== h; d = d.slice(0, d.lastIndexOf('/'))) bases.push(d)
+  return bases
+}
+
+// Local roles first (nearest folder first), so a local role overrides a global one, and a nearer one a farther one, of the same name.
 async function discover($: EngineInterface): Promise<Found[]> {
-  const local = `${await $.session.root()}/.claude/roles`
-  const global = `${await homeDir($)}/.claude/roles`
-  const dirs: [string, Scope][] = local === global ? [[global, 'global']] : [[local, 'local'], [global, 'global']]
+  const root = await $.session.root()
+  const dirs: [string, Scope, string][] = (await localBases($)).map(b => [`${b}/.claude/roles`, 'local', b])
+  dirs.push([`${await homeDir($)}/.claude/roles`, 'global', root])
   const found: Found[] = []
-  for (const [dir, scope] of dirs) {
+  for (const [dir, scope, base] of dirs) {
     if (!(await $.fs.exists(dir))) continue
     const entries = (await $.fs.list(dir)).filter(f => f.name.endsWith('.md') && f.kind !== 'dir')
     for (const f of entries.sort((x, y) => x.name.localeCompare(y.name))) {
+      const name = f.name.slice(0, -3)
+      if (found.some(o => o.scope === scope && o.name === name)) continue
       const path = `${dir}/${f.name}`
       const parsed = parse(await $.fs.read(path).catch(() => ''))
-      found.push({ name: f.name.slice(0, -3), scope, path, ...parsed })
+      found.push({ name, scope, path, base, ...parsed })
     }
   }
   return found
@@ -257,7 +285,8 @@ async function refreshChoices($: EngineInterface): Promise<Found[]> {
     isOverridden: f.scope === 'global' && all.some(o => o.scope === 'local' && o.name === f.name),
     isDefault: f.scope === 'local' && /^(true|yes)$/i.test(str(f.meta.default)),
   }))
-  await update($, choices, () => next)
+  const now = await read($, choices)
+  if (JSON.stringify(now) !== JSON.stringify(next)) await update($, choices, () => next)
   return all
 }
 
@@ -333,23 +362,41 @@ async function finish($: EngineInterface, gone: (r: Running) => boolean): Promis
   if (now.some(gone)) await update($, running, l => l.filter(r => !gone(r)))
 }
 
-function listing(all: Found[], cur: Role | null): string {
+function listing(all: Found[], cur: Role | null, root: string): string {
   const lines: string[] = []
-  for (const scope of ['local', 'global'] as const) {
-    const group = all.filter(f => f.scope === scope)
-    lines.push(`${scope === 'local' ? 'Local roles (.claude/roles)' : 'Global roles (~/.claude/roles)'}${group.length ? '' : ': none'}`)
-    for (const f of group) {
-      const mark = cur?.name === f.name && cur.scope === f.scope ? '●' : '○'
-      const tags = [
-        scope === 'global' && all.some(o => o.scope === 'local' && o.name === f.name) ? 'overridden by local' : '',
-        scope === 'local' && /^(true|yes)$/i.test(str(f.meta.default)) ? 'default' : '',
-      ].filter(Boolean)
-      const desc = str(f.meta.description).replace(/\s+/g, ' ')
-      lines.push(`  ${mark} ${f.name}${tags.length ? ` (${tags.join(', ')})` : ''}${desc ? ` — ${desc.length > 90 ? `${desc.slice(0, 89)}…` : desc}` : ''}`)
-    }
+  const groups: [string, Found[]][] = []
+  for (const f of all.filter(f => f.scope === 'local')) {
+    const g = groups.find(([b]) => b === f.base)
+    if (g) g[1].push(f)
+    else groups.push([f.base, [f]])
   }
+  if (groups.length === 0) lines.push('Local roles (.claude/roles): none')
+  for (const [base, group] of groups) {
+    lines.push(`Local roles (${base === root ? '.claude/roles' : `${base}/.claude/roles`})`)
+    for (const f of group) lines.push(row(f, all, cur))
+  }
+  const globals = all.filter(f => f.scope === 'global')
+  lines.push(`Global roles (~/.claude/roles)${globals.length ? '' : ': none'}`)
+  for (const f of globals) lines.push(row(f, all, cur))
   lines.push('', cur ? `Active: ${cur.name} (${cur.scope}). /role off for Plain Claude.` : 'Plain Claude (no role). /role <name> to pick one.')
   return lines.join('\n')
+}
+
+function row(f: Found, all: Found[], cur: Role | null): string {
+  const mark = cur?.name === f.name && cur.scope === f.scope ? '●' : '○'
+  const tags = [
+    f.scope === 'global' && all.some(o => o.scope === 'local' && o.name === f.name) ? 'overridden by local' : '',
+    f.scope === 'local' && /^(true|yes)$/i.test(str(f.meta.default)) ? 'default' : '',
+  ].filter(Boolean)
+  const desc = str(f.meta.description).replace(/\s+/g, ' ')
+  return `  ${mark} ${f.name}${tags.length ? ` (${tags.join(', ')})` : ''}${desc ? ` — ${desc.length > 90 ? `${desc.slice(0, 89)}…` : desc}` : ''}`
+}
+
+// The band's ↻ (key `refresh`): re-read the role folders and the subagent list. usage-band hooks the same press
+// (ui.press, plugin `session-role`, element `refresh`) to re-measure its figures, so one button refreshes the band.
+async function refreshAll($: EngineInterface): Promise<void> {
+  await refreshChoices($).catch(() => undefined)
+  await prune($)
 }
 
 // ---------- hooks ----------
@@ -362,6 +409,8 @@ export const register: Register = on => {
       description: 'Give this session a role: /role lists, /role <name> [task] switches (and starts the task), /role off for Plain Claude',
     })
     await restore($).catch(() => undefined)
+    // Roles added by another session, an editor or Finder show up within half a minute.
+    $.clock.every(30_000, () => void refreshChoices($).catch(() => undefined))
     return started
   })
 
@@ -376,7 +425,7 @@ export const register: Register = on => {
   // `/role <name> <task>` switches, then sends the task as the person's first message in that role.
   on('command.run', { command: 'role' }, async ($, e) => {
     const arg = e.args.trim()
-    if (arg === '') return { text: listing(await refreshChoices($), await read($, active)) }
+    if (arg === '') return { text: listing(await refreshChoices($), await read($, active), await $.session.root()) }
 
     const target = arg.split(/\s+/)[0]
     const task = arg.slice(target.length).trim()
@@ -394,22 +443,24 @@ export const register: Register = on => {
     return { sections: [...composed.sections, { id: 'session-role:role', scope: 'session' as const, text: roleSection(r) }] }
   })
 
-  // Tool allow-list and edit fence, on the main conversation only; subagents keep their own rules.
+  // Tool allow-list and edit fence (main conversation only; subagents keep their own rules),
+  // then: a role file written mid-session, by any loop, shows up in the picker at once.
   on('tool.call', async ($, e, next) => {
-    if (e.agentId !== undefined) return next(e)
-    const r = await read($, active)
-    if (r === null) return next(e)
-
-    if (r.tools !== null && !allowsTool(r.tools, e.tool)) {
-      return { deny: `The "${r.name}" role may not use ${e.tool} (its tools: ${r.tools.join(', ')}). The user can run /role off to lift this.` }
+    const r = e.agentId === undefined ? await read($, active) : null
+    if (r) {
+      if (r.tools !== null && !allowsTool(r.tools, e.tool)) {
+        return { deny: `The "${r.name}" role may not use ${e.tool} (its tools: ${r.tools.join(', ')}). The user can run /role off to lift this.` }
+      }
+      const field = FILE_TOOLS[e.tool]
+      const file = field ? (e as unknown as Record<string, unknown>)[field] : undefined
+      if (r.edit !== null && typeof file === 'string' && !insideFence(r.edit, r.base ?? (await $.session.root()), await homeDir($), file)) {
+        return { deny: `The "${r.name}" role may only edit ${r.edit.join(', ')}; ${file} is outside that. Tell the user what change is needed there instead.` }
+      }
     }
 
-    const field = FILE_TOOLS[e.tool]
-    const file = field ? (e as unknown as Record<string, unknown>)[field] : undefined
-    if (r.edit !== null && typeof file === 'string' && !insideFence(r.edit, await $.session.root(), await homeDir($), file)) {
-      return { deny: `The "${r.name}" role may only edit ${r.edit.join(', ')}; ${file} is outside that. Tell the user what change is needed there instead.` }
-    }
-    return next(e)
+    const ran = await next(e)
+    if (touchesRoles(e.tool, e as unknown as Record<string, unknown>)) await refreshChoices($).catch(() => undefined)
+    return ran
   })
 
   on('agent.offer', async ($, e, next) => {
@@ -447,9 +498,20 @@ export const register: Register = on => {
       return await next(e)
     } finally {
       if (e.agentId !== undefined) await finish($, r => r.id === e.agentId)
-      // When the main turn ends, nothing it started in the foreground can still be running.
-      else await prune($)
+      // When the main turn ends, nothing it started in the foreground can still be running;
+      // also pick up role files added any other way (Finder, another session, an editor).
+      else {
+        await prune($)
+        await refreshChoices($).catch(() => undefined)
+      }
     }
+  })
+
+  // After every main-thread turn (the engine measures then), pick up role files added elsewhere.
+  on('session.measure', async ($, e, next) => {
+    const measured = await next(e)
+    await refreshChoices($).catch(() => undefined)
+    return measured
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -460,7 +522,7 @@ export const register: Register = on => {
     const list = await read($, choices)
     const subs = await read($, running)
 
-    const { Box, Text, Select, Svg } = $.ui.resolve(e) as any
+    const { Box, Text, Select, Svg, Button } = $.ui.resolve(e) as any
     const value = r === null ? OFF : `${r.name}@${r.scope}`
     const options = [
       { key: OFF, value: OFF, label: 'Plain Claude' },
@@ -473,6 +535,10 @@ export const register: Register = on => {
         }
       }),
     ]
+    const refresh = async () => {
+      await refreshAll($)
+      $.ui.toast('Band refreshed')
+    }
     const pick = async (v: string) => {
       const switched = await switchRole($, v)
       $.ui.toast(switched.text.split('\n')[0])
@@ -513,12 +579,15 @@ export const register: Register = on => {
               <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? 'Working' : 'Ready'}</Text>
             </Box>
           </Box>
-          {subText ? (
-            <Box flexDirection="row" alignItems="center" gap={1}>
-              <Text dimColor>Subagents</Text>
-              <Text color={BLUE}>{subText}</Text>
-            </Box>
-          ) : null}
+          <Box flexDirection="row" alignItems="center" columnGap={2}>
+            {subText ? (
+              <Box flexDirection="row" alignItems="center" gap={1}>
+                <Text dimColor>Subagents</Text>
+                <Text color={BLUE}>{subText}</Text>
+              </Box>
+            ) : null}
+            {Button ? <Button key="refresh" label="↻" plain dimColor onPress={refresh} /> : null}
+          </Box>
         </Box>
         {below}
       </Box>

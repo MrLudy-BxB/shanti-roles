@@ -3,11 +3,11 @@
 Gives each Claude Code session a **Role**: a job description for the Claude you talk to. You pick it from a dropdown above the chat box. Two sessions in the same project can hold different roles at the same time, e.g. `frontend` and `backend`.
 
 ```
-Role [ shanti-developer ▾ ]   ● Working   ↳ Explore   ↳ hyv-researcher ×2
+Role [ shanti-developer ▾ ]  ● Working        Subagents Explore · hyv-researcher ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
 
-The second line comes from the separate `usage-band` mod; the two lines stack.
+The second line comes from the separate `usage-band` mod; the two lines stack. The **↻** at the end of the first line refreshes both: the role list, the subagent list and (with usage-band) the usage figures.
 
 ## Role, agent, skill
 
@@ -31,7 +31,9 @@ The plugin ships a skill, `session-role:roles`, that teaches Claude the whole sy
 
 A role is a markdown file:
 - **Global** (every project): `~/.claude/roles/<name>.md`
-- **Local** (one project): `<project>/.claude/roles/<name>.md`. A local role overrides a global one with the same name.
+- **Local** (one project): `<project>/.claude/roles/<name>.md`, at the **project root**. A local role overrides a global one with the same name.
+
+Like `CLAUDE.md`, local roles are found from anywhere inside the project: a session opened in `<project>/app/` also sees `<project>/.claude/roles/` (the mod looks in the session's folder and every folder above it, up to your home folder; the nearest copy of a name wins). A role's `edit:` paths are relative to the folder that holds its `.claude/roles/`, so `edit: web/**` means `<project>/web/**` from every subfolder.
 
 ```markdown
 ---
@@ -70,6 +72,8 @@ When you switch, a note goes into the conversation: `— Role switched: A → B.
 
 **Kept for you:** a resumed session gets its role back. After a long conversation is compacted, the role is handed over again.
 
+**Staying current:** roles added by another session, an editor or Finder show up in the dropdown on their own: right after Claude writes one, after every turn, and every 30 seconds. Press **↻** to refresh at once.
+
 ## Install with /plugin (recommended)
 
 This mod is part of the **shanti-roles** plugin marketplace ([github.com/MrLudy-BxB/shanti-roles](https://github.com/MrLudy-BxB/shanti-roles)). Add the marketplace once, then install:
@@ -102,6 +106,7 @@ Check it with `claude plugin validate /path/to/session-role`. Or send [PROMPT.md
 | `hooks/hooks.json` | points Claude Code at the module |
 | `hooks/register.tsx` | the mod |
 | `types/index.d.ts` | the shape of the values it keeps |
+| `hooks/roles.test.ts` | engine tests (`claude plugin test session-role`) |
 | `ARCHITECTURE.md` | the design |
 | `examples/roles/` | sample roles |
 

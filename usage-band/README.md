@@ -11,7 +11,8 @@ Context ▬▬── 12% 119.9k / 1M     Session ▬─── 1% ↻ 16:30     W
 - **Week**: the weekly all-models limit and when it resets
 - Each bar is blue, turns amber at 80% and red at 90%; from 80% the percentage turns bold in the same colour
 - It shares the space above the chat box with other mods (e.g. `session-role`): each draws its own line
-- It updates by itself after every turn and whenever a limit moves by a full point
+- It updates by itself after every turn, whenever a limit moves by a full point, and right after the conversation is compacted (Context drops to the compacted size at once instead of waiting for the next reply)
+- With `session-role` installed, the **↻** at the end of the Role line refreshes these figures too, with Context estimated from the conversation as it is now. Plan limits come from Claude's last reply; Claude Code gives mods no way to fetch them fresh, so they move after your next message
 
 Works in the Claude Code desktop app (Code tab) and in the terminal. Tested on Claude Code **2.1.286**; 2.1.270 is too old because it lacks the `session.measure` event. The terminal shows the text without the bars. Plan limits appear only on a Claude subscription (Pro/Max); with an API key you see Context only.
 
@@ -61,7 +62,8 @@ The line appears as soon as the session starts; Context shows 0% until Claude's 
 |---|---|
 | `.claude-plugin/plugin.json` | plugin name, version, description |
 | `hooks/hooks.json` | points Claude Code at the module |
-| `hooks/register.tsx` | the mod itself (about 90 lines) |
+| `hooks/register.tsx` | the mod itself (about 130 lines) |
+| `hooks/usage.test.ts` | engine tests (`claude plugin test usage-band`) |
 | `types/index.d.ts` | the type of the one value it keeps |
 
 The mod only reads usage figures Claude Code already has. It makes no network calls, reads no files and doesn't touch your credentials.

@@ -2,7 +2,7 @@
 
 A Claude Code mod that lets **each session take on a Role**: a persistent job description for the Claude you talk to, with its own instructions, tool limits and an edit fence. Two sessions in the same project can hold different roles at once (e.g. `frontend` and `backend`).
 
-Status: v0.3.0 (2026-10-03): adds the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
+Status: v0.4.0 (2026-10-03): local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
 
 ---
 
@@ -47,7 +47,9 @@ Roles follow the same global/local pattern as `CLAUDE.md`, skills and agents.
     └── skills/<name>/        local skills
 ```
 
-**Resolution:** a local role overrides a global role with the same name. The other copy still shows in the picker as "(overridden)" and can be picked explicitly with `/role name@global`.
+**Lookup, like `CLAUDE.md`:** local roles are read from `.claude/roles/` in the session's root folder **and every folder above it**, stopping before the home folder (whose `.claude/roles/` is the global one) or `/`. So a session opened in `<project>/app/` still finds `<project>/.claude/roles/`. Each role remembers its **base**, the folder holding its `.claude/`; project-relative `edit:` globs resolve against that base (a global role's base is the session's root). Roles belong at the project root; a subfolder's `.claude/roles/` is only for roles that make sense in that subfolder alone.
+
+**Resolution:** the nearest folder wins between two local roles of the same name, and a local role overrides a global role with the same name. The other copy still shows in the picker as "(overridden)" and can be picked explicitly with `/role name@global`.
 
 **Why roles get their own folder instead of reusing `agents/`:** Claude Code automatically offers every file in `agents/` to the model as a subagent. A role file there would leak into delegation in every session. Keeping them separate keeps both systems clean.
 
@@ -78,7 +80,7 @@ You are the frontend lead for this project. You own everything under web/ and pa
 | `name` | no (the filename is used) | Display name, `/role <name>` | — |
 | `description` | recommended | Shown in the picker and in `/role` | — |
 | *(body)* | no | The role's instructions. Empty = a label only ("work as the default assistant") | switch note + prompt composition (§4) |
-| `edit` | no | Glob list of paths the role may write | `tool.call` guard on file tools (§5) |
+| `edit` | no | Glob list of paths the role may write, relative to the role's base folder (§2) | `tool.call` guard on file tools (§5) |
 | `tools` | no | Tool allow-list | `tool.call` guard (§5) |
 | `agents` | no | Which agents are offered to this session | `agent.offer` filter (§5) |
 | `default` | no | Auto-select for new sessions in this project | `session.start` (§6) |
@@ -139,7 +141,7 @@ Instructions tell the role what to do. These guards make the limits real.
 
 | Guard | Hook | Rule | On violation |
 |---|---|---|---|
-| **Edit fence** | `tool.call` on `Edit`, `Write`, `NotebookEdit` (main loop only) | `file_path` must match one of the `edit:` globs, relative to the project root | `deny`: "The frontend role may only edit web/**, packages/ui/**. Ask the user, or leave a request in docs/…" |
+| **Edit fence** | `tool.call` on `Edit`, `Write`, `NotebookEdit` (main loop only) | `file_path` must match one of the `edit:` globs, relative to the role's base folder (§2) | `deny`: "The frontend role may only edit web/**, packages/ui/**. Ask the user, or leave a request in docs/…" |
 | **Tool allow-list** | `tool.call` (main loop only) | Tool name must be in `tools:`. `Bash(git:*)` allows Bash; `mcp__x__*` allows that server's tools | `deny` with the allowed list |
 | **Agent list** | `agent.offer` + `agent.spawn` | Only agents in `agents:` are offered; a dispatch by name is refused too | Not offered; `deny` at spawn |
 
@@ -171,8 +173,8 @@ Subagents started by a role keep their **own** tool lists (Claude Code enforces 
 | State | Where | Scope | Purpose |
 |---|---|---|---|
 | `active` (the selected role) | `$.state` | this session, live | What the prompt, guards and band read |
-| `choices` (picker list) | `$.state` | this session | Fills the dropdown; refreshed at start, on `/role`, right after any Write/Edit/shell command that touches a `.claude/roles` folder (from any loop), and at the end of every turn (catches roles added outside Claude) |
-| `running` (subagents in flight) | `$.state` | this session | The `↳ Explore` indicator |
+| `choices` (picker list) | `$.state` | this session | Fills the dropdown; refreshed at start, on `/role`, right after any Write/Edit/shell command that touches a `.claude/roles` folder (from any loop), at the end of every turn and on `session.measure`, every 30 s (`$.clock.every`; written only when the list changed), and on the band's ↻. This catches roles added by other sessions or outside Claude |
+| `running` (subagents in flight) | `$.state` | this session | The Subagents indicator |
 | `role-by-session:<sessionId>` | `$.store` | survives restarts | Restores the role when a session is resumed |
 
 **Switching** (picker or `/role`):
@@ -209,12 +211,13 @@ Session A — Role: frontend              Session B — Role: backend
 
 **Band above the chat box** (stacks with other mods such as `usage-band`):
 ```
-Role [ frontend ▾ ]   ● Working   ↳ Explore   ↳ hyv-researcher ×2
+Role [ frontend ▾ ]  ● Working        Subagents Explore · hyv-researcher ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
 - **Dropdown:** Plain Claude, then local roles, then global roles. Labels are just the role name; the scope appears only when a local and a global role share a name, and a project default is marked `(default)`.
 - **● Working / ○ Ready:** whether the session is busy (green while working).
-- **↳ list:** subagents running now, grouped by type (`↳ hyv-researcher ×2`), tracked from `agent.spawn` until their call or loop ends.
+- **Subagents:** subagents running now, grouped by type (`hyv-researcher ×2`), tracked from `agent.spawn` until their call or loop ends.
+- **↻ (Button, key `refresh`):** re-reads the role folders and prunes finished subagents. `usage-band` hooks the same press (`ui.press` matched on plugin `session-role`, element `refresh`) and re-measures its figures, so one button refreshes the whole band. A mod can't raise `session.measure` itself (`$.session.measure` isn't on a plugin's `$`), so the press is shared instead.
 - Deliberately **not** shown: the model (Claude Code shows it already), the edit fence, tool and agent counts. They're in `/role` and the switch note.
 
 **Command:**
@@ -244,7 +247,7 @@ On the terminal, the dropdown falls back to text and switching is done with `/ro
 
 ---
 
-## 10. Build status (v0.1)
+## 10. Build status (v0.4)
 
 | Piece | Status |
 |---|---|
@@ -255,8 +258,10 @@ On the terminal, the dropdown falls back to text and switching is done with `/ro
 | Empty role (label only) | ✅ validated (skill-builder) |
 | Tool allow-list (`tools:`) | validated + unit-tested, not yet seen live |
 | `agents:` filter | validated, not yet seen live |
-| Restore on resume, project `default: true` | validated, not yet seen live |
+| Restore on resume | validated, not yet seen live |
+| Project `default: true` at session start | ✅ seen working live (skill-builder) |
+| Roles found from a subfolder; fence resolves against the role's base; ↻ refresh (roles + usage) | ✅ engine-tested (`hooks/*.test.ts`, `claude plugin test`), not yet seen live |
 | Re-send after compaction | validated, not yet seen live |
-| `↳` subagent indicator: grouped (`Explore ×2`), each removed as it finishes, cleanup after an interrupt | ✅ seen working live (3 parallel subagents, matched the background-tasks panel step by step) |
+| Subagent indicator: grouped (`Explore ×2`), each removed as it finishes, cleanup after an interrupt | ✅ seen working live (3 parallel subagents, matched the background-tasks panel step by step) |
 
 **v2 ideas:** edit-fence subagents too (they're spawned with `agentId`; check the parent's role); a `/role new` command that writes a role file from a short description; a per-project allow-list that hides unrelated global agents (saves their context tokens).
