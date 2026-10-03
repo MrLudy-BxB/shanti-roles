@@ -1,5 +1,5 @@
 ---
-name: roles
+name: role-builder
 description: "How the session-role system works and how to build it for a user: global and local Roles, the role file format, and how CLAUDE.md, roles, agents and skills divide the work. Load this BEFORE creating, editing, reviewing or explaining a role; before setting up roles for a project; before rewriting a CLAUDE.md in a project that uses (or should use) roles; and whenever the user mentions roles, the Role picker above the chat box, /role, .claude/roles or ~/.claude/roles, or asks which role should do what. Also load it when a project's CLAUDE.md mixes project facts with persona or job instructions."
 ---
 
@@ -24,7 +24,7 @@ Four kinds of instructions exist. Keeping them separate is the whole point of th
 - A self-contained task that can be delegated with a brief? → **an agent**
 - A reusable procedure? → **a skill**
 
-Without a role, a session is **Plain Claude**: Claude Code's default assistant plus CLAUDE.md.
+Without a role (**No role** in the picker), a session is Claude Code's default assistant plus CLAUDE.md.
 
 ## 2. Global and local roles
 
@@ -67,9 +67,9 @@ There is **no `model` field**: a role runs on whatever model the session uses.
 
 ## 4. How a role reaches you
 
-When the user switches, the plugin adds a note to the conversation: `— Role switched: A → B. From here on, follow this role: —` followed by the role's full text. **That note is your instruction:** follow it until the next switch note. A switch to Plain Claude means return to the default assistant. After compaction the plugin re-sends the active role.
+When the user switches, the plugin adds a note to the conversation: `— Role switched: A → B. From here on, follow this role: —` followed by the role's full text. **That note is your instruction:** follow it until the next switch note. A switch to No role means return to the default assistant. After compaction the plugin re-sends the active role.
 
-If the user asks "what is your role?", answer from the latest switch note; if there is none, you are Plain Claude.
+If the user asks "what is your role?", answer from the latest switch note; if there is none, you have no role: you are Claude Code's default assistant.
 
 ## 5. Workflows
 
@@ -121,4 +121,4 @@ For each role, check:
 | `/role <name>` | switch |
 | `/role <name> <task>` | switch and start the task, e.g. as the first message of a new session |
 | `/role <name>@global` | pick the global copy when a local one shadows it |
-| `/role off` | back to Plain Claude |
+| `/role off` | back to No role (Claude Code's default assistant) |

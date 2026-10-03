@@ -46,7 +46,7 @@ More in [session-role/README.md](session-role/README.md), the design in [session
 
 ```
 .claude-plugin/marketplace.json   the catalog Claude Code reads (marketplace "shanti-roles")
-session-role/                     plugin: roles, picker, edit fence, subagent indicator, roles skill
+session-role/                     plugin: roles, picker, edit fence, subagent indicator, role-builder skill
 usage-band/                       plugin: context and usage band
 export.py                         maintainer tool: re-export a plugin from its dev folder
 ```

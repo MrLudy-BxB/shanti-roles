@@ -2,7 +2,7 @@
 
 A Claude Code mod that lets **each session take on a Role**: a persistent job description for the Claude you talk to, with its own instructions, tool limits and an edit fence. Two sessions in the same project can hold different roles at once (e.g. `frontend` and `backend`).
 
-Status: v0.5.0 (2026-10-03): adds the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
+Status: v0.6.0 (2026-10-03): the no-role choice is called **No role** (was Plain Claude), and the bundled skill is renamed `role-builder` (was `roles`) so `/role-builder` no longer looks like the `/role` command. v0.5.0 added the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
 
 ---
 
@@ -18,10 +18,10 @@ These three words mean different things. Everything else follows from them.
 
 In one line: **a Role is who you're talking to, Agents are who it delegates to, and Skills are what it reads.**
 
-Without a role, a session is **Plain Claude**: Claude Code's default main assistant. That's the default, and nothing changes unless you pick a role.
+Without a role, a session has **No role** (that's its name in the picker): Claude Code's default main assistant. That's the default, and nothing changes unless you pick a role.
 
 ```
-YOU ⇄ SESSION  (Plain Claude, or Role: frontend)
+YOU ⇄ SESSION  (No role, or Role: frontend)
         │  reads ──▶ Skills      (manuals: how to do things)
         └─ sends ──▶ Agents      (specialists: do one task, report back)
 ```
@@ -125,7 +125,7 @@ The note is re-sent in two more cases: when a fresh session starts on a project'
 │ 5. Memory, date…                                    (unchanged)│
 └────────────────────────────────────────────────────────────────┘
   6. Conversation, including a marker each time the role changes:
-     "— Role switched: Plain Claude → frontend —"
+     "— Role switched: No role → frontend —"
 ```
 
 - **Hook:** `prompt.compose`. It appends one `session`-scoped section after the engine's own sections. It isn't cached, so a change takes effect on the next request.
@@ -161,7 +161,7 @@ Subagents started by a role keep their **own** tool lists (Claude Code enforces 
      project has a default role? ── yes ──▶ Role: <default>
                  │ no
                  ▼
-           Plain Claude ◀──────────── /role off · picker "Plain Claude"
+           No role ◀───────────────── /role off · picker "No role"
                  │                              ▲
    picker / /role X                             │
                  ▼                              │
@@ -215,12 +215,12 @@ Session A — Role: frontend              Session B — Role: backend
 Role [ frontend ▾ ] ⓘ  ● Working  Owns the web UI…   Subagents Explore · hyv-researcher ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
-- **Dropdown:** Plain Claude, then local roles, then global roles. Labels are just the role name; the scope appears only when a local and a global role share a name, and a project default is marked `(default)`.
+- **Dropdown:** No role, then local roles, then global roles. Labels are just the role name; the scope appears only when a local and a global role share a name, and a project default is marked `(default)`.
 - **● Working / ○ Ready:** whether the session is busy (green while working).
 - **Description:** the active role's `description:`, dim, cut to fit.
 - **ⓘ (Button, key `roles-info`):** opens the Roles panel at the active role.
 
-**Roles panel** (`Pane`, id `session-role-roles`; also `/role show [name]`): one card per choice, Plain Claude first. Each card shows the name, scope, default/overridden tags, `● active`, the description, a limits line (edits · tools · agents), the file path, a **Show prompt** toggle that draws `roleSection(role)` as Markdown (exactly what the switch note hands Claude) and a **Use** button that switches. Which prompts are open is `expanded` in `$.state`. `choices` holds each parsed role (a `Role` plus `isOverridden`/`isDefault`), so the panel draws without reading files.
+**Roles panel** (`Pane`, id `session-role-roles`; also `/role show [name]`): one card per choice, No role first. Each card shows the name, scope, default/overridden tags, `● active`, the description, a limits line (edits · tools · agents), the file path, a **Show prompt** toggle that draws `roleSection(role)` as Markdown (exactly what the switch note hands Claude) and a **Use** button that switches. Which prompts are open is `expanded` in `$.state`. `choices` holds each parsed role (a `Role` plus `isOverridden`/`isDefault`), so the panel draws without reading files.
 
 A hover card was tried and dropped: a `position: absolute` Box needs an opaque background to sit over the transcript, and mods get no theme colours, so any fixed colour breaks light or dark mode. The description sits inline instead.
 - **Subagents:** subagents running now, grouped by type (`hyv-researcher ×2`), tracked from `agent.spawn` until their call or loop ends.
@@ -236,7 +236,7 @@ A hover card was tried and dropped: a `position: absolute` Box needs an opaque b
 | `/role <name>` | Switch (local wins) |
 | `/role <name> <task>` | Switch, then submit the task as the person's message (`$.prompt.submit`, `asUser`): starts a session in a role from the new-session screen |
 | `/role <name>@global` | Pick a specific copy |
-| `/role off` | Back to Plain Claude |
+| `/role off` | Back to No role |
 
 On the terminal, the dropdown falls back to text and switching is done with `/role`.
 

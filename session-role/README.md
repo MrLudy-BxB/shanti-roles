@@ -17,11 +17,11 @@ The second line comes from the separate `usage-band` mod; the two lines stack. N
 | **Agent** | A specialist the session *sends work to*; it does one task and reports back | `Explore`, `hyv-researcher` |
 | **Skill** | A manual any session *reads* to learn how to do something | `hearyourvoice` |
 
-No role picked = **Plain Claude**, Claude Code's default. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
+No role picked = **No role** in the picker: Claude Code's default assistant. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
-## The `roles` skill (included)
+## The `role-builder` skill (included)
 
-The plugin ships a skill, `session-role:roles`, that teaches Claude the whole system: what belongs in CLAUDE.md versus a role, global versus local roles, the file format and its limits. Claude loads it on its own when you talk about roles. Just ask:
+The plugin ships a skill, `role-builder` (`/role-builder` in the slash menu, full name `session-role:role-builder`), that teaches Claude the whole system: what belongs in CLAUDE.md versus a role, global versus local roles, the file format and its limits. Claude loads it on its own when you talk about roles. Just ask:
 
 - *"Create a global reviewer role."*
 - *"Set up roles for this project."* Claude reads your CLAUDE.md, proposes a set of roles, moves job-specific instructions into them, and rewrites CLAUDE.md as a role-neutral project description, showing you the change first.
@@ -55,12 +55,12 @@ Two full examples are in [`examples/roles/`](examples/roles/) (`frontend.md` and
 
 | | |
 |---|---|
-| **Dropdown** above the chat box | Plain Claude, then every local and global role |
+| **Dropdown** above the chat box | No role, then every local and global role |
 | `/role` | List roles; ● marks the active one |
 | `/role show [name]` | Open the Roles panel (same as ⓘ), optionally with that role's prompt open |
 | `/role <name>` | Switch (`<name>@global` picks the global copy) |
 | `/role <name> <task>` | Switch, then send the task as your first message in that role. Type it on the **new-session screen** to start a session in a role. |
-| `/role off` | Back to Plain Claude |
+| `/role off` | Back to No role (Claude Code's default assistant) |
 
 **Not sure which role to pick?** Press **ⓘ** (or `/role show`). The Roles panel opens beside the chat with one card per role:
 - its description, scope, and whether it's the project default;

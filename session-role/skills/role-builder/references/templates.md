@@ -81,7 +81,7 @@ You are a careful reviewer. You read and search the project and report what you 
 
 ## Role (label only)
 
-An empty body: the session works as Plain Claude but shows the name in the picker.
+An empty body: the session works like No role (Claude Code's default assistant) but shows the name in the picker.
 
 ```markdown
 ---

@@ -226,8 +226,8 @@ async function switchRole($: EngineInterface, arg: string): Promise<{ ok: boolea
     if (cur === null) return { ok: true, text: 'No role was active.' }
     await update($, active, () => null)
     await remember($, null)
-    await addMarker($, `— Role switched: ${cur.name} → Plain Claude. From here on, act as Claude Code's default assistant. —`)
-    return { ok: true, text: `Role ${cur.name} is off. This session is Plain Claude again.` }
+    await addMarker($, `— Role switched: ${cur.name} → No role. From here on, act as Claude Code's default assistant. —`)
+    return { ok: true, text: `Role ${cur.name} is off. This session has no role now.` }
   }
 
   const all = await refreshChoices($)
@@ -240,7 +240,7 @@ async function switchRole($: EngineInterface, arg: string): Promise<{ ok: boolea
   const role = toRole(hit)
   await update($, active, () => role)
   await remember($, role)
-  await addMarker($, `— Role switched: ${cur ? cur.name : 'Plain Claude'} → ${role.name}. From here on, follow this role: —\n\n${roleSection(role)}`)
+  await addMarker($, `— Role switched: ${cur ? cur.name : 'No role'} → ${role.name}. From here on, follow this role: —\n\n${roleSection(role)}`)
 
   const notes = [
     role.edit ? `Edits limited to: ${role.edit.join(', ')}.` : 'May edit anywhere.',
@@ -301,7 +301,7 @@ function listing(all: Found[], cur: Role | null, root: string): string {
   const globals = all.filter(f => f.scope === 'global')
   lines.push(`Global roles (~/.claude/roles)${globals.length ? '' : ': none'}`)
   for (const f of globals) lines.push(row(f, all, cur))
-  lines.push('', cur ? `Active: ${cur.name} (${cur.scope}). /role off for Plain Claude.` : 'Plain Claude (no role). /role <name> to pick one.')
+  lines.push('', cur ? `Active: ${cur.name} (${cur.scope}). /role off for no role.` : 'No role active. /role <name> to pick one.')
   return lines.join('\n')
 }
 
@@ -337,7 +337,7 @@ export const register: Register = on => {
     const started = await next(e)
     await $.command.register({
       name: 'role',
-      description: 'Give this session a role: /role lists, /role show [name] opens the Roles panel, /role <name> [task] switches (and starts the task), /role off for Plain Claude',
+      description: 'Give this session a role: /role lists, /role show [name] opens the Roles panel, /role <name> [task] switches (and starts the task), /role off for no role',
     })
     await restore($).catch(() => undefined)
     // Roles added by another session, an editor or Finder show up within half a minute.
@@ -461,7 +461,7 @@ export const register: Register = on => {
     const { Box, Text, Select, Svg, Button } = $.ui.resolve(e) as any
     const value = r === null ? OFF : `${r.name}@${r.scope}`
     const options = [
-      { key: OFF, value: OFF, label: 'Plain Claude' },
+      { key: OFF, value: OFF, label: 'No role' },
       ...list.map(c => {
         const isTwin = list.some(o => o.name === c.name && o.scope !== c.scope)
         return {
@@ -511,7 +511,7 @@ export const register: Register = on => {
               {Select ? (
                 <Select key="role-pick" options={options} value={value} onSelect={pick} />
               ) : (
-                <Text bold>{r ? r.name : 'Plain Claude'}</Text>
+                <Text bold>{r ? r.name : 'No role'}</Text>
               )}
               {Button ? <Button key="roles-info" label="ⓘ" plain dimColor onPress={() => void openPanel($, r ? `${r.name}@${r.scope}` : undefined)} /> : null}
             </Box>
@@ -581,7 +581,7 @@ export const register: Register = on => {
         <Box key="card:off" flexDirection="column" borderStyle="round" borderColor={r === null ? GREEN : undefined} borderDimColor={r !== null} paddingX={1} marginBottom={1}>
           <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
             <Box flexDirection="row" alignItems="center" gap={1}>
-              <Text bold>Plain Claude</Text>
+              <Text bold>No role</Text>
               {r === null ? <Text color={GREEN}>● active</Text> : null}
             </Box>
             {r === null ? null : <Button key="use:off" label="Use" onPress={() => void use(OFF)} />}
