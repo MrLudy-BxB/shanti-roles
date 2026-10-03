@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "shanti-roles",
+  "description": "Shanti Roles: Claude Code plugins that give each session a Role picked from a dropdown above the chat box, plus an always-on usage band.",
+  "owner": {
+    "name": "ShantiLink"
+  },
+  "plugins": [
+    {
+      "name": "usage-band",
+      "description": "Always-visible line above the chat box: context window fill and plan usage limits (session + weekly), with mini bars.",
+      "source": "./usage-band",
+      "category": "productivity"
+    },
+    {
+      "name": "session-role",
+      "description": "Give each session a Role picked from a dropdown above the chat box: local (.claude/roles) or global (~/.claude/roles) job descriptions with an edit fence, tool limits and a live subagent indicator.",
+      "source": "./session-role",
+      "category": "productivity"
+    }
+  ]
+}
