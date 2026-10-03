@@ -104,6 +104,18 @@ function insideFence(edit: string[], root: string, home: string, file: string): 
   })
 }
 
+// ---------- role files ----------
+
+const ROLES_PATH = /\.claude\/roles(?![\w-])/
+
+// Whether a tool call may have created, changed or removed a role file.
+function touchesRoles(tool: string, input: Record<string, unknown>): boolean {
+  if (tool === 'Bash') return typeof input.command === 'string' && ROLES_PATH.test(input.command)
+  const field = FILE_TOOLS[tool]
+  const file = field ? input[field] : undefined
+  return typeof file === 'string' && ROLES_PATH.test(file)
+}
+
 // ---------- band ----------
 
 const GREEN = '#3fb950'
@@ -309,22 +321,24 @@ export const register: Register = on => {
     return { sections: [...composed.sections, { id: 'session-role:role', scope: 'session' as const, text: roleSection(r) }] }
   })
 
-  // Tool allow-list and edit fence, on the main conversation only; subagents keep their own rules.
+  // Tool allow-list and edit fence (main conversation only; subagents keep their own rules),
+  // then: a role file written mid-session, by any loop, shows up in the picker at once.
   on('tool.call', async ($, e, next) => {
-    if (e.agentId !== undefined) return next(e)
-    const r = await read($, active)
-    if (r === null) return next(e)
-
-    if (r.tools !== null && !allowsTool(r.tools, e.tool)) {
-      return { deny: `The "${r.name}" role may not use ${e.tool} (its tools: ${r.tools.join(', ')}). The user can run /role off to lift this.` }
+    const r = e.agentId === undefined ? await read($, active) : null
+    if (r) {
+      if (r.tools !== null && !allowsTool(r.tools, e.tool)) {
+        return { deny: `The "${r.name}" role may not use ${e.tool} (its tools: ${r.tools.join(', ')}). The user can run /role off to lift this.` }
+      }
+      const field = FILE_TOOLS[e.tool]
+      const file = field ? (e as unknown as Record<string, unknown>)[field] : undefined
+      if (r.edit !== null && typeof file === 'string' && !insideFence(r.edit, await $.session.root(), await homeDir($), file)) {
+        return { deny: `The "${r.name}" role may only edit ${r.edit.join(', ')}; ${file} is outside that. Tell the user what change is needed there instead.` }
+      }
     }
 
-    const field = FILE_TOOLS[e.tool]
-    const file = field ? (e as unknown as Record<string, unknown>)[field] : undefined
-    if (r.edit !== null && typeof file === 'string' && !insideFence(r.edit, await $.session.root(), await homeDir($), file)) {
-      return { deny: `The "${r.name}" role may only edit ${r.edit.join(', ')}; ${file} is outside that. Tell the user what change is needed there instead.` }
-    }
-    return next(e)
+    const ran = await next(e)
+    if (touchesRoles(e.tool, e as unknown as Record<string, unknown>)) await refreshChoices($).catch(() => undefined)
+    return ran
   })
 
   on('agent.offer', async ($, e, next) => {
@@ -362,8 +376,12 @@ export const register: Register = on => {
       return await next(e)
     } finally {
       if (e.agentId !== undefined) await finish($, r => r.id === e.agentId)
-      // When the main turn ends, nothing it started in the foreground can still be running.
-      else await prune($)
+      // When the main turn ends, nothing it started in the foreground can still be running;
+      // also pick up role files added any other way (Finder, another session, an editor).
+      else {
+        await prune($)
+        await refreshChoices($).catch(() => undefined)
+      }
     }
   })
 

@@ -171,7 +171,7 @@ Subagents started by a role keep their **own** tool lists (Claude Code enforces 
 | State | Where | Scope | Purpose |
 |---|---|---|---|
 | `active` (the selected role) | `$.state` | this session, live | What the prompt, guards and band read |
-| `choices` (picker list) | `$.state` | this session | Fills the dropdown; refreshed at start and on `/role` |
+| `choices` (picker list) | `$.state` | this session | Fills the dropdown; refreshed at start, on `/role`, right after any Write/Edit/shell command that touches a `.claude/roles` folder (from any loop), and at the end of every turn (catches roles added outside Claude) |
 | `running` (subagents in flight) | `$.state` | this session | The `↳ Explore` indicator |
 | `role-by-session:<sessionId>` | `$.store` | survives restarts | Restores the role when a session is resumed |
 
