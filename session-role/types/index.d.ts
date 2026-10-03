@@ -19,8 +19,8 @@ export type Role = {
 /** One role the session can pick: the parsed file, for the picker and the Roles panel. */
 export type Choice = Role & { isOverridden: boolean; isDefault: boolean }
 
-/** A subagent running now: its loop id, its type, and the Agent call that started it. */
-export type Running = { id: string; type: string; toolUseId: string }
+/** A subagent running now: its loop id, its type, the Agent call that started it, and whether it runs in the background (it outlives that call). */
+export type Running = { id: string; type: string; toolUseId: string; background?: boolean }
 
 declare module 'claude-code' {
   interface PluginState {

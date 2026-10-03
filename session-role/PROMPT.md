@@ -29,7 +29,7 @@ tools: <optional: tool allow-list, e.g. Read, Grep, Glob>
 ```json
 {
   "name": "session-role",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Give each session a Role: a job description for the main Claude, from .claude/roles (local) or ~/.claude/roles (global), with tool limits, an edit fence and a picker above the chat box",
   "types": "./types/index.d.ts",
   "author": {
@@ -69,8 +69,8 @@ export type Role = {
 /** One role the session can pick: the parsed file, for the picker and the Roles panel. */
 export type Choice = Role & { isOverridden: boolean; isDefault: boolean }
 
-/** A subagent running now: its loop id, its type, and the Agent call that started it. */
-export type Running = { id: string; type: string; toolUseId: string }
+/** A subagent running now: its loop id, its type, the Agent call that started it, and whether it runs in the background (it outlives that call). */
+export type Running = { id: string; type: string; toolUseId: string; background?: boolean }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -433,6 +433,8 @@ export const register: Register = on => {
     await restore($).catch(() => undefined)
     // Roles added by another session, an editor or Finder show up within half a minute.
     $.clock.every(30_000, () => void refreshChoices($).catch(() => undefined))
+    // A background subagent that was stopped, or ended between turns, leaves the band within seconds.
+    $.clock.every(5_000, () => void read($, running).then(l => (l.length ? prune($) : undefined)).catch(() => undefined))
     return started
   })
 
@@ -505,18 +507,20 @@ export const register: Register = on => {
     }
     const started = await next(e)
     if (!started.deny && started.agentId) {
-      const entry: Running = { id: started.agentId, type: e.subagentType, toolUseId: e.tool_use_id }
+      const entry: Running = { id: started.agentId, type: e.subagentType, toolUseId: e.tool_use_id, background: e.background }
       await update($, running, l => [...l, entry])
     }
     return started
   })
 
-  // `finally`: an interrupted or failed Agent call must not leave a stale ↳ entry behind.
+  // `finally`: an interrupted or failed Agent call must not leave a stale entry behind.
+  // A background agent outlives its call (which returns at launch; background is the default,
+  // so `run_in_background` is often unset): it leaves on its own turn.complete, or on a prune.
   on('tool.call', { tool: 'Agent' }, async ($, e, next) => {
     try {
       return await next(e)
     } finally {
-      if (!e.run_in_background) await finish($, r => r.toolUseId === e.tool_use_id)
+      await finish($, r => r.toolUseId === e.tool_use_id && !r.background)
     }
   })
 
@@ -525,7 +529,7 @@ export const register: Register = on => {
       return await next(e)
     } finally {
       if (e.agentId !== undefined) await finish($, r => r.id === e.agentId)
-      // When the main turn ends, nothing it started in the foreground can still be running;
+      // When the main turn ends, drop whatever the engine no longer lists as running;
       // also pick up role files added any other way (Finder, another session, an editor).
       else {
         await prune($)

@@ -118,3 +118,24 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(await band.find({ type: 'Text', text: 'Bot dev' })).toBeDefined()
   })
 }
+
+test('a background subagent stays in the band after its Agent call returns', async ($: any, on: any) => {
+  stub(on, PROJ)
+  const v = (x: unknown) => ({ value: x })
+  const agents = [{ id: 'bg1', description: 'Long job', type: 'Explore', status: 'running' }]
+  on('agent.list', () => v(agents))
+  on('agent.spawn', () => ({ model: 'm', agentId: 'bg1' }))
+  on('tool.call', () => ({ result: { text: 'Async agent launched' } }))
+  on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  const ui = await $.ui.mount({ plugin: 'session-role', surface: 'desktop', component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 100, scroll: {} as any, view: {} as any } })
+  await $.agent.spawn({ tool_use_id: 'tu1', prompt: 'p', description: 'Long job', subagentType: 'Explore', background: true,
+    provider: { kind: 'model' }, parentModel: 'm', fork: false })
+  // Background is the default, so the call carries no run_in_background.
+  await $.tool.call({ tool: 'Agent', tool_use_id: 'tu1', prompt: 'p', description: 'Long job', subagent_type: 'Explore' })
+  expect(JSON.stringify(await ui.drawn())).toContain('Explore')
+
+  agents[0].status = 'killed'
+  await $.turn.complete({ status: 'completed', toolUses: [] }).catch(() => undefined)
+  expect(JSON.stringify(await ui.drawn())).not.toContain('Explore')
+})
