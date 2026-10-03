@@ -29,7 +29,7 @@ tools: <optional: tool allow-list, e.g. Read, Grep, Glob>
 ```json
 {
   "name": "session-role",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Give each session a Role: a job description for the main Claude, from .claude/roles (local) or ~/.claude/roles (global), with tool limits, an edit fence and a picker above the chat box",
   "types": "./types/index.d.ts",
   "author": {
@@ -215,6 +215,14 @@ function touchesRoles(tool: string, input: Record<string, unknown>): boolean {
 
 const GREEN = '#3fb950'
 const BLUE = '#4c8df6'
+
+// A 10px status dot, drawn as a plain image (the interactive frame paints a box around it):
+// green and gently pulsing while working where the host animates SVG images, a quiet grey ring when ready.
+function statusDot(working: boolean): string {
+  return working
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" fill="${GREEN}"><animate attributeName="opacity" values="1;0.35;1" dur="1.6s" repeatCount="indefinite"/></circle></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3" fill="none" stroke="#8888" stroke-width="1.5"/></svg>`
+}
 
 // ---------- prompt ----------
 
@@ -541,7 +549,7 @@ export const register: Register = on => {
     const list = await read($, choices)
     const subs = await read($, running)
 
-    const { Box, Text, Select, Button } = $.ui.resolve(e) as any
+    const { Box, Text, Select, Svg, Button } = $.ui.resolve(e) as any
     const value = r === null ? OFF : `${r.name}@${r.scope}`
     const options = [
       // With no role marked `default: true`, new sessions start on No role, so it carries the tag.
@@ -569,10 +577,23 @@ export const register: Register = on => {
     for (const s of subs) counts.set(s.type, (counts.get(s.type) ?? 0) + 1)
     const subText = [...counts].map(([type, n]) => `${type}${n > 1 ? ` ×${n}` : ''}`).join(' · ')
 
+    const working = e.props.isWorking
     // The active role's one-line description, cut to fit beside the picker.
-    const room = Math.max(20, Math.floor((e.props.bodyColumns ?? 100) / 2))
+    const room = Math.max(20, Math.floor((e.props.bodyColumns ?? 100) / 2.5))
     const desc = (r?.description ?? '').replace(/\s+/g, ' ')
     const about = desc.length > room ? `${desc.slice(0, room - 1)}…` : desc
+    const dot = Svg ? (
+      <Svg
+        key="status-dot"
+        source={statusDot(working)}
+        alt={working ? 'Working' : 'Ready'}
+        width={10}
+        height={10}
+      />
+    ) : (
+      <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? '●' : '○'}</Text>
+    )
+
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" columnGap={3} paddingX={1} flexWrap="wrap">
@@ -585,6 +606,10 @@ export const register: Register = on => {
                 <Text bold>{r ? r.name : 'No role'}</Text>
               )}
               {Button ? <Button key="roles-info" label="ⓘ" plain dimColor onPress={() => void openPanel($, r ? `${r.name}@${r.scope}` : undefined)} /> : null}
+            </Box>
+            <Box flexDirection="row" alignItems="center" gap={1}>
+              {dot}
+              <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? 'Working' : 'Ready'}</Text>
             </Box>
             {about ? <Text dimColor>{about}</Text> : null}
           </Box>
