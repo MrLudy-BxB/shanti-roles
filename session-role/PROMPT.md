@@ -29,7 +29,7 @@ tools: <optional: tool allow-list, e.g. Read, Grep, Glob>
 ```json
 {
   "name": "session-role",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "description": "Give each session a Role: a job description for the main Claude, from .claude/roles (local) or ~/.claude/roles (global), with tool limits, an edit fence and a picker above the chat box",
   "types": "./types/index.d.ts",
   "author": {

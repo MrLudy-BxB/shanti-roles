@@ -20,7 +20,7 @@ Four kinds of instructions exist. Keeping them separate is the whole point of th
 
 **The test for any instruction:**
 - True for everyone working on this project? → **CLAUDE.md**
-- True only while doing one job ("you own the frontend", "never push", "talk through UI decisions first")? → **a role**
+- True only while doing one job ("you focus on the frontend", "talk through UI decisions first")? → **a role**
 - A self-contained task that can be delegated with a brief? → **an agent**
 - A reusable procedure? → **a skill**
 
@@ -40,27 +40,34 @@ Without a role (**No role** in the picker), a session is Claude Code's default a
 
 ```markdown
 ---
-description: Owns the web UI — components, styling, client-side state.   # one line, shown in /role
-edit: web/**, packages/ui/**, docs/api-requests.md                       # optional edit fence
-tools: Read, Write, Edit, Grep, Glob, Bash                               # optional tool allow-list
-agents: Explore                                                          # optional delegation allow-list
+description: Focuses on the web UI — components, styling, client-side state.   # one line, shown in /role
 default: true                                                            # optional, local only
 ---
-You are the frontend lead for this project. …
+You are the frontend lead for this project. You mainly work in web/ and packages/ui/. …
+```
+
+**Focus, not fence (the default).** Roles in one project share it, and real work crosses folders: a UI change needs an API tweak, a new skill needs a README row. So a role names its **main area** and how it coordinates with the others, and it may still change whatever a task needs: it keeps the change coherent with the rest of the project and tells the user what it touched outside its area. Write "You mainly work in web/", not "You own web/; never change anything else".
+
+**Hard limits only on request.** `edit:`, `tools:`, `agents:` and "never …" or "only …" rules turn the role into a cage. Add them **only when the user asks for separation or a restriction**: "each role stays in its own folder", "a read-only reviewer", "it must never touch the database". Then write them as blocks, not advice:
+
+```markdown
+edit: web/**, packages/ui/**, docs/api-requests.md   # Edit/Write outside these are blocked
+tools: Read, Grep, Glob                              # other tools are blocked
+agents: Explore                                      # other agents are hidden and refused
 ```
 
 | Field | Effect | Enforced? |
 |---|---|---|
 | *(body)* | The role's instructions, written to Claude ("You are…"). Optional: an empty body makes the role a label only | instructions |
 | `description` | Shown in `/role` and the picker | — |
-| `edit` | Globs Claude's **Edit, Write and NotebookEdit** may touch. Relative to the folder holding the role's `.claude/roles/` (the project root), or absolute with `~/` or `/`. A bare folder means everything under it | **Yes**, main conversation only |
-| `tools` | Tool allow-list. `all` or omitted = every tool. `mcp__server__*` allows one server. `Bash(git:*)` allows **all** Bash (the bracket part isn't checked) | **Yes**, main conversation only |
-| `agents` | Agents the session may delegate to; others are hidden and refused | **Yes** |
+| `edit` | **Only when the user wants a hard boundary.** Globs Claude's **Edit, Write and NotebookEdit** may touch. Relative to the folder holding the role's `.claude/roles/` (the project root), or absolute with `~/` or `/`. A bare folder means everything under it | **Yes**, main conversation only |
+| `tools` | **Only on request** (e.g. a read-only reviewer). Tool allow-list. `all` or omitted = every tool. `mcp__server__*` allows one server. `Bash(git:*)` allows **all** Bash (the bracket part isn't checked) | **Yes**, main conversation only |
+| `agents` | **Only on request.** Agents the session may delegate to; others are hidden and refused | **Yes** |
 | `default: true` | New sessions in the project start in this role (local roles only; use for at most one). Without one, new sessions start on No role, which the picker then tags *(default)* | — |
 
 There is **no `model` field**: a role runs on whatever model the session uses.
 
-**Limits to tell the user about:**
+**Limits to tell the user about** (when a role has hard limits):
 - The edit fence doesn't cover shell commands. For a hard boundary, leave `Bash` out of `tools:`, or run each role in its own git worktree.
 - Subagents keep their own rules; the fence and tool list apply to the main conversation.
 - Switching roles keeps the conversation history. For a clean start, the user opens a new session and runs `/role <name>` first (or `/role <name> <task>`).
@@ -75,9 +82,9 @@ If the user asks "what is your role?", answer from the latest switch note; if th
 
 ### A. Create a role
 
-1. Ask only what you can't infer: **name**, **global or local**, **what it's responsible for**, and **whether it should be fenced** (which folders it may edit) or limited to certain tools.
+1. Ask only what you can't infer: **name**, **global or local**, and **what it focuses on**. Don't ask about fences or tool limits: add them only if the user brings up separation or a restriction (§3).
 2. For a local role, **find the project root** first (see §2) and compare it with your session's folder. If they differ (you're running in a subfolder), say so and confirm with the user where the role should go before writing. Then check the name isn't taken there (`ls ~/.claude/roles <project root>/.claude/roles`).
-3. Write the file from the template in [references/templates.md](references/templates.md). Body: who it is, what it owns, how it works with the user, what it must not do, how it hands off. Keep it to the job: project facts belong in CLAUDE.md.
+3. Write the file from the template in [references/templates.md](references/templates.md). Body: who it is, its main area, how it works with the user, how it coordinates with other roles, and only the "never" rules the user actually gave. Keep it to the job: project facts belong in CLAUDE.md.
 4. Run the conflict check (workflow C) on it.
 5. Tell the user it's in the dropdown now (the list refreshes as soon as you write the file; other sessions in the project pick it up within 30 seconds, or at once with the band's ↻), and show `/role <name> <first task>`.
 
@@ -85,11 +92,11 @@ If the user asks "what is your role?", answer from the latest switch note; if th
 
 Use when the user wants roles for a project, or when CLAUDE.md is doing a role's job.
 
-1. **Find the project root** (§2). If your session runs in a subfolder, tell the user and confirm the root before anything else: roles, the CLAUDE.md you rewrite and the hand-off file all belong there, and `edit:` globs are written relative to it (e.g. `app/convex/**`, not `convex/**`).
-2. **Read** the root's `CLAUDE.md`, `.claude/agents/`, `.claude/roles/` (if any) and `~/.claude/roles/`, plus any `.claude/roles/` in subfolders (move them to the root unless they're truly subfolder-only). Skim the folder layout (top two levels) to see the natural areas of ownership.
+1. **Find the project root** (§2). If your session runs in a subfolder, tell the user and confirm the root before anything else: roles, the CLAUDE.md you rewrite and the hand-off file all belong there, and any `edit:` globs are written relative to it (e.g. `app/convex/**`, not `convex/**`).
+2. **Read** the root's `CLAUDE.md`, `.claude/agents/`, `.claude/roles/` (if any) and `~/.claude/roles/`, plus any `.claude/roles/` in subfolders (move them to the root unless they're truly subfolder-only). Skim the folder layout (top two levels) to see the natural areas of focus.
 3. **Sort** every instruction in CLAUDE.md with the test in §1: project fact, role material, or something to drop.
 4. **Propose** to the user, before writing anything:
-   - the roles (2–4 is usual; more makes the picker noisy), each with its responsibility, `edit:` fence, and whether it's local or global;
+   - the roles (2–4 is usual; more makes the picker noisy), each with its focus area and whether it's local or global. Propose **no** `edit:`/`tools:`/`agents:` limits unless the user asked for separation; if they did, propose the fence for each role;
    - which CLAUDE.md lines move to which role;
    - the new CLAUDE.md outline;
    - whether one role should be `default: true`.
@@ -106,10 +113,11 @@ Use when the user wants roles for a project, or when CLAUDE.md is doing a role's
 For each role, check:
 - **Fence vs. instructions:** does the body tell it to edit something its `edit:` fence blocks (a shared hand-off file, `package.json`, a README, the session scratchpad under `/private/tmp`)? Add the path or change the instruction.
 - **Tools vs. instructions:** does it say "run the tests" with no `Bash`?
-- **Overlap:** do two roles claim the same folder? That's fine only if intended.
+- **Over-restriction:** does a role have `edit:`, `tools:`, `agents:` or "never"/"only" rules the user didn't ask for? Suggest focus wording instead and dropping the fields; keep them only where the user wanted separation.
+- **Overlap:** two roles focusing on the same area is normal. Two roles *fenced* to the same folder is fine only if intended.
 - **Leaks:** does a role contain project facts every role needs? Move them to CLAUDE.md.
 - **Hand-offs:** if roles exchange work through a file, every role involved can edit it, and the file exists.
-- **Placement:** every local role is in the project root's `.claude/roles/`, and its `edit:` globs are relative to that root.
+- **Placement:** every local role is in the project root's `.claude/roles/`, and any `edit:` globs are relative to that root.
 - **Secrets:** no keys or tokens in any role or CLAUDE.md.
 
 ## 6. Commands to give the user

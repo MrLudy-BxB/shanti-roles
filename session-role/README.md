@@ -38,18 +38,23 @@ Like `CLAUDE.md`, local roles are found from anywhere inside the project: a sess
 ```markdown
 ---
 name: frontend
-description: Owns the web UI.                  # shown in /role
-edit: web/**, packages/ui/**, docs/api-requests.md   # optional edit fence
-tools: Read, Write, Edit, Grep, Glob, Bash     # optional tool allow-list
-agents: Explore                                # optional: agents it may delegate to
+description: Focuses on the web UI.            # shown in /role
 default: true                                  # optional, local roles only: new sessions start in it
 ---
-You are the frontend lead for this project. …
+You are the frontend lead for this project. You mainly work in web/. …
+```
+
+By default a role is a **focus, not a fence**: it says where the session mainly works, and it can still change other parts of the project when a task needs it. Roles in one project usually have to work together. If you want hard separation, add limits; they're enforced:
+
+```markdown
+edit: web/**, docs/api-requests.md   # Edit/Write outside these are blocked
+tools: Read, Grep, Glob              # other tools are blocked (e.g. a read-only reviewer)
+agents: Explore                      # other agents are hidden and refused
 ```
 
 Everything in the header is optional, and a role with no body is fine: it's just a label. The role's name is its **filename** (`frontend.md` → `frontend`); `name:` is only a second way to find it with `/role`. There's no `model` setting: a role runs on whatever model the session uses.
 
-Two full examples are in [`examples/roles/`](examples/roles/) (`frontend.md` and `backend.md`, which hand work to each other through `docs/api-requests.md`).
+Two full examples are in [`examples/roles/`](examples/roles/) (`frontend.md` and `backend.md`: focus roles that coordinate through `docs/api-requests.md`).
 
 ## Using it
 

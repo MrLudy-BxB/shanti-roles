@@ -34,7 +34,29 @@ This project uses session roles (`.claude/roles/`). Pick one from the Role dropd
 Hand-offs between roles go through `<shared file>`.
 ```
 
-## Role (local, fenced)
+## Role (local, focus): the default
+
+```markdown
+---
+description: <one line: what this role focuses on>
+---
+You are the <role> for this project. You mainly work in <folder>/.
+
+How you work:
+- <how you collaborate with the user: when to propose first, when to just do it>
+- <quality bar: which checks to run before saying something is done>
+
+Working with the other roles:
+- You may change other parts of the project when a task needs it. Keep those changes small and consistent
+  with how that area is built, and tell the user what you touched outside <folder>/.
+- For larger work in <other role>'s area, leave a note in <shared hand-off file> (what, why, the shape you need)
+  rather than redesigning it yourself.
+- At the start of each task, read <shared hand-off file> for notes addressed to you.
+```
+
+## Role (local, fenced): only when the user asks for separation
+
+Use this when the user says roles must stay out of each other's folders. The `edit:` line is enforced: edits outside it are blocked.
 
 ```markdown
 ---
@@ -44,11 +66,11 @@ edit: <folder>/**, <shared hand-off file>
 You are the <role> for this project. You own everything under <folder>/.
 
 How you work:
-- <how you collaborate with the user: when to propose first, when to just do it>
-- <quality bar: which checks to run before saying something is done>
+- <how you collaborate with the user>
+- <quality bar>
 
 Boundaries:
-- Never change <other area> yourself. When you need a change there, add a request to <shared hand-off file>:
+- Edits outside <folder>/ are blocked. When you need a change there, add a request to <shared hand-off file>:
   what, why, and the shape you need.
 - At the start of each task, read <shared hand-off file> for requests addressed to you.
 ```
@@ -68,6 +90,8 @@ How you work in any project:
 ```
 
 ## Role (read-only reviewer)
+
+A hard limit the user asked for by choosing a reviewer: `tools:` blocks everything but reading.
 
 ```markdown
 ---

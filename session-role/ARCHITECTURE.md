@@ -2,7 +2,7 @@
 
 A Claude Code mod that lets **each session take on a Role**: a persistent job description for the Claude you talk to, with its own instructions, tool limits and an edit fence. Two sessions in the same project can hold different roles at once (e.g. `frontend` and `backend`).
 
-Status: v0.6.4 (2026-10-03): the role's description is no longer shown in the band (it's in the Roles panel and `/role`). v0.6.3: background subagents (Claude Code's default) stay in the Subagents indicator until they end; 0.6.2 and earlier dropped them as soon as their launch returned. v0.6.2: ● Working / ○ Ready is back in the band (0.6.1 had dropped it). v0.6.1: when no role has `default: true`, No role carries the *(default)* tag in the picker, the Roles panel and `/role`. v0.6.0: the no-role choice is called **No role** (was Plain Claude), and the bundled skill is renamed `role-builder` (was `roles`) so `/role-builder` no longer looks like the `/role` command. v0.5.0 added the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
+Status: v0.7.0 (2026-10-03): the role-builder skill makes roles a **focus, not a fence** by default: it adds `edit:`/`tools:`/`agents:` limits and "never" rules only when the user asks for separation, and the bundled examples follow suit. v0.6.4: the role's description is no longer shown in the band (it's in the Roles panel and `/role`). v0.6.3: background subagents (Claude Code's default) stay in the Subagents indicator until they end; 0.6.2 and earlier dropped them as soon as their launch returned. v0.6.2: ● Working / ○ Ready is back in the band (0.6.1 had dropped it). v0.6.1: when no role has `default: true`, No role carries the *(default)* tag in the picker, the Roles panel and `/role`. v0.6.0: the no-role choice is called **No role** (was Plain Claude), and the bundled skill is renamed `role-builder` (was `roles`) so `/role-builder` no longer looks like the `/role` command. v0.5.0 added the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
 
 ---
 
@@ -74,6 +74,8 @@ You are the frontend lead for this project. You own everything under web/ and pa
 - When you need a backend change, do NOT make it. Append a request to docs/api-requests.md.
 - Run `pnpm test --filter web` before saying a change is done.
 ```
+
+This sample shows every field. A typical role uses none of the limits: it's a **focus, not a fence**, naming where the session mainly works while leaving it free to change what a task needs. `edit:`, `tools:` and `agents:` are for users who ask for hard separation (§7); the role-builder skill adds them only then.
 
 | Field | Required | Effect | Enforced by |
 |---|---|---|---|
@@ -202,7 +204,7 @@ Session A — Role: frontend              Session B — Role: backend
 ```
 
 - **Separate prompts.** Each session holds its own role in its own state, so they never mix.
-- **Separate write areas.** The edit fence stops them overwriting each other through Claude's file tools.
+- **Separate focus areas, shared project.** By default each role names where it mainly works and coordinates with the other; both may touch shared files when a task needs it. When the user wants hard separation, the edit fence (as in the diagram) stops them overwriting each other through Claude's file tools.
 - **Hand-offs through files.** The frontend role writes requests to `docs/api-requests.md`; the backend role reads and answers them. They don't see each other's conversations.
 - **Strongest isolation.** The desktop app can start each session in its own git worktree, so there's no shared working copy at all. They merge through git like two developers would.
 
