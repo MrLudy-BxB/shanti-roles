@@ -22,7 +22,7 @@ claude plugin install session-role@shanti-roles
 claude plugin install usage-band@shanti-roles
 ```
 
-The band appears right away (start a new session if it doesn't). Update later with `claude plugin marketplace update shanti-roles`.
+The band appears right away (start a new session if it doesn't). Update later with `claude plugin marketplace update shanti-roles`, then `claude plugin update session-role@shanti-roles` and `claude plugin update usage-band@shanti-roles` (refreshing the marketplace alone doesn't update installed plugins), and restart the app.
 
 ## Your first role
 

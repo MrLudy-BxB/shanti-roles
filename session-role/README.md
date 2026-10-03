@@ -79,7 +79,7 @@ claude plugin marketplace add MrLudy-BxB/shanti-roles
 claude plugin install session-role@shanti-roles
 ```
 
-From a local copy of this repo, use its folder path instead of `MrLudy-BxB/shanti-roles`. The band appears right away; start a new session if it doesn't. Update later with `claude plugin marketplace update shanti-roles`.
+From a local copy of this repo, use its folder path instead of `MrLudy-BxB/shanti-roles`. The band appears right away; start a new session if it doesn't. Update later with `claude plugin marketplace update shanti-roles`, then `claude plugin update session-role@shanti-roles` and `claude plugin update usage-band@shanti-roles` (refreshing the marketplace alone doesn't update installed plugins), and restart the app.
 
 ## Other ways to install
 
