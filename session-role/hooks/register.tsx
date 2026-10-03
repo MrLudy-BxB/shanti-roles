@@ -126,14 +126,6 @@ function touchesRoles(tool: string, input: Record<string, unknown>): boolean {
 const GREEN = '#3fb950'
 const BLUE = '#4c8df6'
 
-// A 10px status dot, drawn as a plain image (the interactive frame paints a box around it):
-// green and gently pulsing while working where the host animates SVG images, a quiet grey ring when ready.
-function statusDot(working: boolean): string {
-  return working
-    ? `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5" fill="${GREEN}"><animate attributeName="opacity" values="1;0.35;1" dur="1.6s" repeatCount="indefinite"/></circle></svg>`
-    : `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3" fill="none" stroke="#8888" stroke-width="1.5"/></svg>`
-}
-
 // ---------- prompt ----------
 
 function roleSection(r: Role): string {
@@ -301,6 +293,7 @@ function listing(all: Found[], cur: Role | null, root: string): string {
   const globals = all.filter(f => f.scope === 'global')
   lines.push(`Global roles (~/.claude/roles)${globals.length ? '' : ': none'}`)
   for (const f of globals) lines.push(row(f, all, cur))
+  if (!all.some(f => f.scope === 'local' && /^(true|yes)$/i.test(str(f.meta.default)))) lines.push('', 'No role is the default here: no role has `default: true`.')
   lines.push('', cur ? `Active: ${cur.name} (${cur.scope}). /role off for no role.` : 'No role active. /role <name> to pick one.')
   return lines.join('\n')
 }
@@ -458,10 +451,11 @@ export const register: Register = on => {
     const list = await read($, choices)
     const subs = await read($, running)
 
-    const { Box, Text, Select, Svg, Button } = $.ui.resolve(e) as any
+    const { Box, Text, Select, Button } = $.ui.resolve(e) as any
     const value = r === null ? OFF : `${r.name}@${r.scope}`
     const options = [
-      { key: OFF, value: OFF, label: 'No role' },
+      // With no role marked `default: true`, new sessions start on No role, so it carries the tag.
+      { key: OFF, value: OFF, label: list.some(c => c.isDefault) ? 'No role' : 'No role (default)' },
       ...list.map(c => {
         const isTwin = list.some(o => o.name === c.name && o.scope !== c.scope)
         return {
@@ -485,23 +479,10 @@ export const register: Register = on => {
     for (const s of subs) counts.set(s.type, (counts.get(s.type) ?? 0) + 1)
     const subText = [...counts].map(([type, n]) => `${type}${n > 1 ? ` ×${n}` : ''}`).join(' · ')
 
-    const working = e.props.isWorking
     // The active role's one-line description, cut to fit beside the picker.
-    const room = Math.max(20, Math.floor((e.props.bodyColumns ?? 100) / 2.5))
+    const room = Math.max(20, Math.floor((e.props.bodyColumns ?? 100) / 2))
     const desc = (r?.description ?? '').replace(/\s+/g, ' ')
     const about = desc.length > room ? `${desc.slice(0, room - 1)}…` : desc
-    const dot = Svg ? (
-      <Svg
-        key="status-dot"
-        source={statusDot(working)}
-        alt={working ? 'Working' : 'Ready'}
-        width={10}
-        height={10}
-      />
-    ) : (
-      <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? '●' : '○'}</Text>
-    )
-
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" columnGap={3} paddingX={1} flexWrap="wrap">
@@ -514,10 +495,6 @@ export const register: Register = on => {
                 <Text bold>{r ? r.name : 'No role'}</Text>
               )}
               {Button ? <Button key="roles-info" label="ⓘ" plain dimColor onPress={() => void openPanel($, r ? `${r.name}@${r.scope}` : undefined)} /> : null}
-            </Box>
-            <Box flexDirection="row" alignItems="center" gap={1}>
-              {dot}
-              <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? 'Working' : 'Ready'}</Text>
             </Box>
             {about ? <Text dimColor>{about}</Text> : null}
           </Box>
@@ -582,6 +559,7 @@ export const register: Register = on => {
           <Box flexDirection="row" justifyContent="space-between" alignItems="center" columnGap={2}>
             <Box flexDirection="row" alignItems="center" gap={1}>
               <Text bold>No role</Text>
+              {list.some(c => c.isDefault) ? null : <Text dimColor>default</Text>}
               {r === null ? <Text color={GREEN}>● active</Text> : null}
             </Box>
             {r === null ? null : <Button key="use:off" label="Use" onPress={() => void use(OFF)} />}

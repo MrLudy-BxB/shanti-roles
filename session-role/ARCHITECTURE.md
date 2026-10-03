@@ -2,7 +2,7 @@
 
 A Claude Code mod that lets **each session take on a Role**: a persistent job description for the Claude you talk to, with its own instructions, tool limits and an edit fence. Two sessions in the same project can hold different roles at once (e.g. `frontend` and `backend`).
 
-Status: v0.6.0 (2026-10-03): the no-role choice is called **No role** (was Plain Claude), and the bundled skill is renamed `role-builder` (was `roles`) so `/role-builder` no longer looks like the `/role` command. v0.5.0 added the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
+Status: v0.6.1 (2026-10-03): the band no longer shows Working/Ready (Claude Code already shows when it's busy), and when no role has `default: true`, No role carries the *(default)* tag in the picker, the Roles panel and `/role`. v0.6.0: the no-role choice is called **No role** (was Plain Claude), and the bundled skill is renamed `role-builder` (was `roles`) so `/role-builder` no longer looks like the `/role` command. v0.5.0 added the Roles panel (ⓘ in the band, `/role show [name]`) to read every role's description, limits and full prompt before picking it, and the active role's description in the band. v0.4.0: local roles are found from any subfolder of the project (the session's folder and every parent up to home, nearest first), each role's `edit:` fence resolves against the folder holding it, and the band gets a ↻ refresh button. v0.3.0 added the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
 
 ---
 
@@ -212,11 +212,10 @@ Session A — Role: frontend              Session B — Role: backend
 
 **Band above the chat box** (stacks with other mods such as `usage-band`):
 ```
-Role [ frontend ▾ ] ⓘ  ● Working  Owns the web UI…   Subagents Explore · hyv-researcher ×2   ↻
+Role [ frontend ▾ ] ⓘ  Owns the web UI…   Subagents Explore · hyv-researcher ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
-- **Dropdown:** No role, then local roles, then global roles. Labels are just the role name; the scope appears only when a local and a global role share a name, and a project default is marked `(default)`.
-- **● Working / ○ Ready:** whether the session is busy (green while working).
+- **Dropdown:** No role (tagged *(default)* when no role has `default: true`), then local roles, then global roles. Labels are just the role name; the scope appears only when a local and a global role share a name, and a project default is marked `(default)`.
 - **Description:** the active role's `description:`, dim, cut to fit.
 - **ⓘ (Button, key `roles-info`):** opens the Roles panel at the active role.
 
@@ -225,7 +224,7 @@ Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     W
 A hover card was tried and dropped: a `position: absolute` Box needs an opaque background to sit over the transcript, and mods get no theme colours, so any fixed colour breaks light or dark mode. The description sits inline instead.
 - **Subagents:** subagents running now, grouped by type (`hyv-researcher ×2`), tracked from `agent.spawn` until their call or loop ends.
 - **↻ (Button, key `refresh`):** re-reads the role folders and prunes finished subagents. `usage-band` hooks the same press (`ui.press` matched on plugin `session-role`, element `refresh`) and re-measures its figures, so one button refreshes the whole band. A mod can't raise `session.measure` itself (`$.session.measure` isn't on a plugin's `$`), so the press is shared instead.
-- Deliberately **not** shown: the model (Claude Code shows it already), the edit fence, tool and agent counts. They're in `/role` and the switch note.
+- Deliberately **not** shown: whether Claude is working and the model (Claude Code shows both already), the edit fence, tool and agent counts. They're in `/role` and the switch note.
 
 **Command:**
 

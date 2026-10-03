@@ -3,7 +3,7 @@
 Gives each Claude Code session a **Role**: a job description for the Claude you talk to. You pick it from a dropdown above the chat box. Two sessions in the same project can hold different roles at the same time, e.g. `frontend` and `backend`.
 
 ```
-Role [ shanti-developer ▾ ] ⓘ  ● Working  Lead developer for ShantiLink…   Subagents Explore ×2   ↻
+Role [ shanti-developer ▾ ] ⓘ  Lead developer for ShantiLink…   Subagents Explore ×2   ↻
 Context ▬▬── 22% 218.6k / 1M     Session ▬─── 3% ↻ 16:30     Week ▬─── 2% ↻ Mon 7:00
 ```
 
@@ -55,7 +55,7 @@ Two full examples are in [`examples/roles/`](examples/roles/) (`frontend.md` and
 
 | | |
 |---|---|
-| **Dropdown** above the chat box | No role, then every local and global role |
+| **Dropdown** above the chat box | No role, then every local and global role. The project's default is tagged *(default)*; when no role has `default: true`, that's No role |
 | `/role` | List roles; ● marks the active one |
 | `/role show [name]` | Open the Roles panel (same as ⓘ), optionally with that role's prompt open |
 | `/role <name>` | Switch (`<name>@global` picks the global copy) |

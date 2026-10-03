@@ -1,6 +1,6 @@
 {
   "name": "session-role",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Give each session a Role: a job description for the main Claude, from .claude/roles (local) or ~/.claude/roles (global), with tool limits, an edit fence and a picker above the chat box",
   "types": "./types/index.d.ts",
   "author": {

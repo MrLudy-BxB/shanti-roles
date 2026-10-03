@@ -56,7 +56,7 @@ You are the frontend lead for this project. …
 | `edit` | Globs Claude's **Edit, Write and NotebookEdit** may touch. Relative to the folder holding the role's `.claude/roles/` (the project root), or absolute with `~/` or `/`. A bare folder means everything under it | **Yes**, main conversation only |
 | `tools` | Tool allow-list. `all` or omitted = every tool. `mcp__server__*` allows one server. `Bash(git:*)` allows **all** Bash (the bracket part isn't checked) | **Yes**, main conversation only |
 | `agents` | Agents the session may delegate to; others are hidden and refused | **Yes** |
-| `default: true` | New sessions in the project start in this role (local roles only; use for at most one) | — |
+| `default: true` | New sessions in the project start in this role (local roles only; use for at most one). Without one, new sessions start on No role, which the picker then tags *(default)* | — |
 
 There is **no `model` field**: a role runs on whatever model the session uses.
 

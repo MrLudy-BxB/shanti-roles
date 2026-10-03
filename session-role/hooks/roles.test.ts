@@ -71,6 +71,27 @@ test('the band refresh button re-reads the role folders', async ($: any, on: any
   delete files[`${PROJ}/.claude/roles/late.md`]
 })
 
+test('No role carries the default tag only when no role is the default', async ($: any, on: any) => {
+  stub(on, PROJ)
+  const v = (x: unknown) => ({ value: x })
+  on('agent.list', () => v([]))
+  on('ui.toast', () => v(undefined))
+  on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  const ui = await $.ui.mount({ plugin: 'session-role', surface: 'desktop', component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 100, scroll: {} as any, view: {} as any } })
+  expect(JSON.stringify(await ui.drawn())).toContain('No role (default)')
+  const l = await $.command.run({ command: 'role', args: '', origin: 'user', presentation: 'local' })
+  expect(l.text).toContain('No role is the default here')
+
+  const before = files[`${PROJ}/.claude/roles/bot-dev.md`]
+  files[`${PROJ}/.claude/roles/bot-dev.md`] = before.replace('---\nYou', 'default: true\n---\nYou')
+  await ui.press({ key: 'refresh' })
+  const drawn = JSON.stringify(await ui.drawn())
+  expect(drawn).not.toContain('No role (default)')
+  expect(drawn).toContain('bot-dev (default)')
+  files[`${PROJ}/.claude/roles/bot-dev.md`] = before
+})
+
 for (const surface of ['desktop', 'terminal'] as const) {
   test(`roles panel on ${surface}: read a prompt, then use the role`, async ($: any, on: any) => {
     stub(on, PROJ)

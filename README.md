@@ -4,11 +4,11 @@ Claude Code plugins (mods) that make sessions easier to steer and to watch:
 
 | Plugin | What it does |
 |---|---|
-| **session-role** | Gives each session a **Role**: a job description for the Claude you talk to, picked from a dropdown above the chat box. Roles are markdown files, global (`~/.claude/roles/`) or per project (`.claude/roles/`), with an optional edit fence and tool limits. Shows when Claude is working and which subagents are running. |
+| **session-role** | Gives each session a **Role**: a job description for the Claude you talk to, picked from a dropdown above the chat box. Roles are markdown files, global (`~/.claude/roles/`) or per project (`.claude/roles/`), with an optional edit fence and tool limits. Shows the role's description and which subagents are running. |
 | **usage-band** | An always-on line above the chat box: how full the context window is, and your plan's session and weekly usage with reset times. |
 
 ```
-Role [ frontend ▾ ]   ● Working                        Subagents  Explore ×2 · general-purpose
+Role [ frontend ▾ ] ⓘ  Owns the web UI…                 Subagents  Explore ×2 · general-purpose  ↻
 Context ▬▬── 35% 352.8k / 1M          Session ▬─── 10% ↻ 16:30          Week ▬─── 3% ↻ Mon 7:00
 ```
 
