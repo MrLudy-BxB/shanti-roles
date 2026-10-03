@@ -2,7 +2,7 @@
 
 A Claude Code mod that lets **each session take on a Role**: a persistent job description for the Claude you talk to, with its own instructions, tool limits and an edit fence. Two sessions in the same project can hold different roles at once (e.g. `frontend` and `backend`).
 
-Status: v0.2.0 shipped 2026-10-03 (installable from the shanti-roles marketplace). Replaces the `session-agent` prototype. See §10 for what was seen working live.
+Status: v0.3.0 (2026-10-03): adds the bundled `roles` skill (`skills/roles/`), which teaches Claude this design so it can create roles and split a project's CLAUDE.md into project facts plus roles. Installable from the shanti-roles marketplace. Replaces the `session-agent` prototype. See §10 for what was seen working live.
 
 ---
 

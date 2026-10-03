@@ -1,0 +1,119 @@
+---
+name: roles
+description: "How the session-role system works and how to build it for a user: global and local Roles, the role file format, and how CLAUDE.md, roles, agents and skills divide the work. Load this BEFORE creating, editing, reviewing or explaining a role; before setting up roles for a project; before rewriting a CLAUDE.md in a project that uses (or should use) roles; and whenever the user mentions roles, the Role picker above the chat box, /role, .claude/roles or ~/.claude/roles, or asks which role should do what. Also load it when a project's CLAUDE.md mixes project facts with persona or job instructions."
+---
+
+# Roles
+
+The `session-role` plugin gives each Claude Code session a **Role**: a job description for the main Claude the user talks to, picked from the dropdown above the chat box or with `/role`. This skill is how you, Claude, build and maintain that system for the user.
+
+## 1. What goes where
+
+Four kinds of instructions exist. Keeping them separate is the whole point of the system.
+
+| | What it holds | Who it applies to | Lives in |
+|---|---|---|---|
+| **CLAUDE.md** | **Facts about the project**: what it is, stack, commands, folder layout, conventions, rules every contributor follows | Every session in the project, whatever its role | `<project>/CLAUDE.md` (local), `~/.claude/CLAUDE.md` (global) |
+| **Role** | **Who this session is**: its responsibility, how it works with the user, what it owns and must not touch, how it hands work to other roles | Only sessions where the user picked it | `<project>/.claude/roles/<name>.md` (local), `~/.claude/roles/<name>.md` (global) |
+| **Agent** | A specialist the session **sends one task to**; it reports back once and never sees the conversation | Called by Claude (or the user) for a task | `.claude/agents/<name>.md`, `~/.claude/agents/` |
+| **Skill** | A **manual**: how to do a particular kind of task, step by step | Loaded by any session when relevant | `.claude/skills/<name>/SKILL.md`, `~/.claude/skills/` |
+
+**The test for any instruction:**
+- True for everyone working on this project? → **CLAUDE.md**
+- True only while doing one job ("you own the frontend", "never push", "talk through UI decisions first")? → **a role**
+- A self-contained task that can be delegated with a brief? → **an agent**
+- A reusable procedure? → **a skill**
+
+Without a role, a session is **Plain Claude**: Claude Code's default assistant plus CLAUDE.md.
+
+## 2. Global and local roles
+
+- **Global** (`~/.claude/roles/<name>.md`): follows the user into every project. Use for personas that aren't tied to one codebase, e.g. `reviewer`, or the user's own business lead-developer role.
+- **Local** (`<project>/.claude/roles/<name>.md`): exists only in that project. Use for jobs defined by the project's structure, e.g. `frontend` (owns `web/**`) and `backend` (owns `api/**`).
+- **Same name in both:** the local one wins. The picker shows both, labelled by scope; `/role <name>@global` picks the global copy.
+- **The role's name is its filename** (`frontend.md` → `frontend`). Use lowercase-with-dashes.
+- Local roles are part of the project: commit `.claude/roles/` so everyone on the project gets them. Global roles are personal.
+
+## 3. The role file
+
+```markdown
+---
+description: Owns the web UI — components, styling, client-side state.   # one line, shown in /role
+edit: web/**, packages/ui/**, docs/api-requests.md                       # optional edit fence
+tools: Read, Write, Edit, Grep, Glob, Bash                               # optional tool allow-list
+agents: Explore                                                          # optional delegation allow-list
+default: true                                                            # optional, local only
+---
+You are the frontend lead for this project. …
+```
+
+| Field | Effect | Enforced? |
+|---|---|---|
+| *(body)* | The role's instructions, written to Claude ("You are…"). Optional: an empty body makes the role a label only | instructions |
+| `description` | Shown in `/role` and the picker | — |
+| `edit` | Globs Claude's **Edit, Write and NotebookEdit** may touch. Project-relative, or absolute with `~/` or `/`. A bare folder means everything under it | **Yes**, main conversation only |
+| `tools` | Tool allow-list. `all` or omitted = every tool. `mcp__server__*` allows one server. `Bash(git:*)` allows **all** Bash (the bracket part isn't checked) | **Yes**, main conversation only |
+| `agents` | Agents the session may delegate to; others are hidden and refused | **Yes** |
+| `default: true` | New sessions in the project start in this role (local roles only; use for at most one) | — |
+
+There is **no `model` field**: a role runs on whatever model the session uses.
+
+**Limits to tell the user about:**
+- The edit fence doesn't cover shell commands. For a hard boundary, leave `Bash` out of `tools:`, or run each role in its own git worktree.
+- Subagents keep their own rules; the fence and tool list apply to the main conversation.
+- Switching roles keeps the conversation history. For a clean start, the user opens a new session and runs `/role <name>` first (or `/role <name> <task>`).
+
+## 4. How a role reaches you
+
+When the user switches, the plugin adds a note to the conversation: `— Role switched: A → B. From here on, follow this role: —` followed by the role's full text. **That note is your instruction:** follow it until the next switch note. A switch to Plain Claude means return to the default assistant. After compaction the plugin re-sends the active role.
+
+If the user asks "what is your role?", answer from the latest switch note; if there is none, you are Plain Claude.
+
+## 5. Workflows
+
+### A. Create a role
+
+1. Ask only what you can't infer: **name**, **global or local**, **what it's responsible for**, and **whether it should be fenced** (which folders it may edit) or limited to certain tools.
+2. Check the name isn't taken at that scope (`ls ~/.claude/roles .claude/roles`).
+3. Write the file from the template in [references/templates.md](references/templates.md). Body: who it is, what it owns, how it works with the user, what it must not do, how it hands off. Keep it to the job: project facts belong in CLAUDE.md.
+4. Run the conflict check (workflow C) on it.
+5. Tell the user it's in the dropdown now (the list refreshes at session start and on `/role`), and show `/role <name> <first task>`.
+
+### B. Set up roles for a project
+
+Use when the user wants roles for a project, or when CLAUDE.md is doing a role's job.
+
+1. **Read** `CLAUDE.md`, `.claude/agents/`, `.claude/roles/` (if any) and `~/.claude/roles/`. Skim the folder layout (top two levels) to see the natural areas of ownership.
+2. **Sort** every instruction in CLAUDE.md with the test in §1: project fact, role material, or something to drop.
+3. **Propose** to the user, before writing anything:
+   - the roles (2–4 is usual; more makes the picker noisy), each with its responsibility, `edit:` fence, and whether it's local or global;
+   - which CLAUDE.md lines move to which role;
+   - the new CLAUDE.md outline;
+   - whether one role should be `default: true`.
+4. **On approval:**
+   - create `.claude/roles/*.md`;
+   - rewrite CLAUDE.md as a **role-neutral project description** (template in references). Show the user the diff, and keep the old version as `CLAUDE.md.bak` until they confirm;
+   - if roles hand work to each other, create the shared hand-off file they name (e.g. `docs/handoff.md`).
+5. Run the conflict check (C) on every role, then tell the user how to try each one.
+
+**Never** overwrite CLAUDE.md without showing the change first. **Never** move a project-wide rule (security, "don't touch X", test commands) out of CLAUDE.md into a single role: every role must still see it.
+
+### C. Conflict check (review roles)
+
+For each role, check:
+- **Fence vs. instructions:** does the body tell it to edit something its `edit:` fence blocks (a shared hand-off file, `package.json`, a README, the session scratchpad under `/private/tmp`)? Add the path or change the instruction.
+- **Tools vs. instructions:** does it say "run the tests" with no `Bash`?
+- **Overlap:** do two roles claim the same folder? That's fine only if intended.
+- **Leaks:** does a role contain project facts every role needs? Move them to CLAUDE.md.
+- **Hand-offs:** if roles exchange work through a file, every role involved can edit it, and the file exists.
+- **Secrets:** no keys or tokens in any role or CLAUDE.md.
+
+## 6. Commands to give the user
+
+| | |
+|---|---|
+| `/role` | list roles; ● marks the active one |
+| `/role <name>` | switch |
+| `/role <name> <task>` | switch and start the task, e.g. as the first message of a new session |
+| `/role <name>@global` | pick the global copy when a local one shadows it |
+| `/role off` | back to Plain Claude |

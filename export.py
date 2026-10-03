@@ -30,6 +30,8 @@ def main(dev: Path) -> None:
         if src.exists():
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, out / rel)
+    if (dev / "skills").is_dir():
+        shutil.copytree(dev / "skills", out / "skills", dirs_exist_ok=True)
 
     prompt = out / "PROMPT.md"
     intro = prompt.read_text().split("\n### `")[0].rstrip() if prompt.exists() else f"# {name}"

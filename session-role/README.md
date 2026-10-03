@@ -19,6 +19,14 @@ The second line comes from the separate `usage-band` mod; the two lines stack.
 
 No role picked = **Plain Claude**, Claude Code's default. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
+## The `roles` skill (included)
+
+The plugin ships a skill, `session-role:roles`, that teaches Claude the whole system: what belongs in CLAUDE.md versus a role, global versus local roles, the file format and its limits. Claude loads it on its own when you talk about roles. Just ask:
+
+- *"Create a global reviewer role."*
+- *"Set up roles for this project."* Claude reads your CLAUDE.md, proposes a set of roles, moves job-specific instructions into them, and rewrites CLAUDE.md as a role-neutral project description, showing you the change first.
+- *"Check my roles for conflicts."*
+
 ## Writing a role
 
 A role is a markdown file:
@@ -71,7 +79,7 @@ claude plugin marketplace add MrLudy-BxB/shanti-roles
 claude plugin install session-role@shanti-roles
 ```
 
-From a local copy of this repo, use its folder path instead of `MrLudy-BxB/shanti-roles`. Start a new session afterwards. Update later with `claude plugin marketplace update shanti-roles`.
+From a local copy of this repo, use its folder path instead of `MrLudy-BxB/shanti-roles`. The band appears right away; start a new session if it doesn't. Update later with `claude plugin marketplace update shanti-roles`.
 
 ## Other ways to install
 
@@ -97,4 +105,4 @@ Check it with `claude plugin validate /path/to/session-role`. Or send [PROMPT.md
 | `ARCHITECTURE.md` | the design |
 | `examples/roles/` | sample roles |
 
-The mod reads role files and the session's own data. It makes no network calls.
+The mod reads role files and the session's own data, and runs one local command (`printenv HOME`) to find your home folder. It makes no network calls.
