@@ -492,10 +492,6 @@ export const register: Register = on => {
     const subText = [...counts].map(([type, n]) => `${type}${n > 1 ? ` ×${n}` : ''}`).join(' · ')
 
     const working = e.props.isWorking
-    // The active role's one-line description, cut to fit beside the picker.
-    const room = Math.max(20, Math.floor((e.props.bodyColumns ?? 100) / 2.5))
-    const desc = (r?.description ?? '').replace(/\s+/g, ' ')
-    const about = desc.length > room ? `${desc.slice(0, room - 1)}…` : desc
     const dot = Svg ? (
       <Svg
         key="status-dot"
@@ -525,7 +521,6 @@ export const register: Register = on => {
               {dot}
               <Text color={working ? GREEN : undefined} dimColor={!working}>{working ? 'Working' : 'Ready'}</Text>
             </Box>
-            {about ? <Text dimColor>{about}</Text> : null}
           </Box>
           <Box flexDirection="row" alignItems="center" columnGap={2}>
             {subText ? (

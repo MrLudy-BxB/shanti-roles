@@ -115,7 +115,10 @@ for (const surface of ['desktop', 'terminal'] as const) {
     await pane.press({ key: 'use:bot-dev@local' })
     expect(await pane.find({ type: 'Text', text: '● active' })).toBeDefined()
     expect(await pane.find({ key: 'use:bot-dev@local' })).toBeUndefined()
-    expect(await band.find({ type: 'Text', text: 'Bot dev' })).toBeDefined()
+    // The band shows the role, not its description (that lives in the panel).
+    const drawn = JSON.stringify(await band.drawn())
+    expect(drawn).toContain('bot-dev@local')
+    expect(drawn).not.toContain('Bot dev')
   })
 }
 
